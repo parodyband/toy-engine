@@ -17,7 +17,7 @@ arm64*)
 	SHDC_ARCH="_arm64" ;;
 esac
 
-sokol-shdc -i source/shader.glsl -o source/shader.odin -l glsl300es:hlsl4:glsl430 -f sokol_odin
+sokol-shdc\win32\sokol-shdc -i source/shader.glsl -o source/shader.odin -l glsl300es:hlsl4:glsl430 -f sokol_odin
 
 OUT_DIR="build/desktop"
 mkdir -p $OUT_DIR
