@@ -6,6 +6,10 @@ import "core:os"
 import "core:log"
 import "core:image/png"
 import "core:slice"
+import "core:math/linalg"
+
+import "cgltf" // modified to work with wasm/ecc
+// import mathf "math"
 
 import slog  "sokol/log"
 import sapp  "sokol/app"
@@ -16,6 +20,7 @@ import "web"
 
 _ :: web
 _ :: os
+_ :: cgltf
 
 Mat4 :: matrix[4,4]f32
 Vec3 :: [3]f32
@@ -27,6 +32,8 @@ state: struct {
     bind       : sg.Bindings,
     pass_action: sg.Pass_Action,
     tint_params: Tint_Params,
+    rx         : f32,
+    ry         : f32,
 }
 
 
@@ -42,30 +49,65 @@ init :: proc "c" () {
     })
 
     // Define Triangle Position
-    quad_vertices := [?]f32 {
-        // Positions      // Color0            // textcoord0
-        -0.5,  0.5, 0.5,  1.0, 0.0, 0.0, 1.0,  0.0, 0.0,
-         0.5,  0.5, 0.5,  0.0, 1.0, 0.0, 1.0,  1.0, 0.0,
-         0.5, -0.5, 0.5,  0.0, 0.0, 1.0, 1.0,  1.0, 1.0,
-        -0.5, -0.5, 0.5,  1.0, 1.0, 0.0, 1.0,  0.0, 1.0,
+    cube_vertices := [?]f32 {
+        // Positions        // Color0             // texcoord0
+        // Front face
+        -1.0, -1.0, -1.0,   0.0, 1.0, 0.0, 1.0,   0.0, 0.0,
+         1.0, -1.0, -1.0,   0.0, 1.0, 0.0, 1.0,   1.0, 0.0,
+         1.0,  1.0, -1.0,   0.0, 1.0, 0.0, 1.0,   1.0, 1.0,
+        -1.0,  1.0, -1.0,   0.0, 1.0, 0.0, 1.0,   0.0, 1.0,
+
+        // Back face
+        -1.0, -1.0,  1.0,   1.0, 0.0, 0.0, 1.0,   1.0, 0.0,
+         1.0, -1.0,  1.0,   1.0, 0.0, 0.0, 1.0,   0.0, 0.0,
+         1.0,  1.0,  1.0,   1.0, 0.0, 0.0, 1.0,   0.0, 1.0,
+        -1.0,  1.0,  1.0,   1.0, 0.0, 0.0, 1.0,   1.0, 1.0,
+
+        // Left face
+        -1.0, -1.0, -1.0,   0.0, 0.0, 1.0, 1.0,   0.0, 0.0,
+        -1.0,  1.0, -1.0,   0.0, 0.0, 1.0, 1.0,   1.0, 0.0,
+        -1.0,  1.0,  1.0,   0.0, 0.0, 1.0, 1.0,   1.0, 1.0,
+        -1.0, -1.0,  1.0,   0.0, 0.0, 1.0, 1.0,   0.0, 1.0,
+
+        // Right face
+         1.0, -1.0, -1.0,   1.0, 0.5, 0.0, 1.0,   1.0, 0.0,
+         1.0,  1.0, -1.0,   1.0, 0.5, 0.0, 1.0,   0.0, 0.0,
+         1.0,  1.0,  1.0,   1.0, 0.5, 0.0, 1.0,   0.0, 1.0,
+         1.0, -1.0,  1.0,   1.0, 0.5, 0.0, 1.0,   1.0, 1.0,
+
+        // Bottom face
+        -1.0, -1.0, -1.0,   0.0, 0.5, 1.0, 1.0,   0.0, 1.0,
+        -1.0, -1.0,  1.0,   0.0, 0.5, 1.0, 1.0,   0.0, 0.0,
+         1.0, -1.0,  1.0,   0.0, 0.5, 1.0, 1.0,   1.0, 0.0,
+         1.0, -1.0, -1.0,   0.0, 0.5, 1.0, 1.0,   1.0, 1.0,
+
+        // Top face
+        -1.0,  1.0, -1.0,   1.0, 0.0, 0.5, 1.0,   0.0, 1.0,
+        -1.0,  1.0,  1.0,   1.0, 0.0, 0.5, 1.0,   0.0, 0.0,
+         1.0,  1.0,  1.0,   1.0, 0.0, 0.5, 1.0,   1.0, 0.0,
+         1.0,  1.0, -1.0,   1.0, 0.0, 0.5, 1.0,   1.0, 1.0,
     }
 
-    quad_indices := [?]u16{
-        0,1,2,
-        0,2,3,
+    cube_indices := [?]u16{
+        0, 1, 2,     0, 2, 3,
+		6, 5, 4,     7, 6, 4,
+		8, 9, 10,    8, 10, 11,
+		14, 13, 12,  15, 14, 12,
+		16, 17, 18,  16, 18, 19,
+		22, 21, 20,  23, 22, 20,
     }
 
     // Bind the data
     state.bind.vertex_buffers[0] = sg.make_buffer({
         data = { 
-            ptr  = &quad_vertices,
-            size = size_of(quad_vertices),
+            ptr  = &cube_vertices,
+            size = size_of(cube_vertices),
         },
     })
 
     state.bind.index_buffer = sg.make_buffer({
         type = .INDEXBUFFER,
-        data = { ptr = &quad_indices, size = size_of(quad_indices) },
+        data = { ptr = &cube_indices, size = size_of(cube_indices) },
     })
 
     if img_data, img_data_ok := read_entire_file("assets/test.png", context.temp_allocator); img_data_ok {
@@ -83,6 +125,7 @@ init :: proc "c" () {
                     },
                 },
             })
+            
             // Optionally, you may want to store the width/height for later use (e.g., for UV scaling)
             // state.image_width = img.width;
             // state.image_height = img.height;
@@ -93,18 +136,25 @@ init :: proc "c" () {
     } else {
         log.error("Failed Loading Texture")
     }
-
-    state.bind.samplers[SMP_smp] = sg.make_sampler({})
+    //limits := sg.query_limits()
+    state.bind.samplers[SMP_smp] = sg.make_sampler({
+        max_anisotropy = 8,
+    })
 
     state.pipeline = sg.make_pipeline({
-        shader = sg.make_shader( quad_shader_desc(sg.query_backend()) ),
-        index_type = .UINT16,
+        shader = sg.make_shader( cube_shader_desc(sg.query_backend()) ),
         layout = {
             attrs = {
-                ATTR_quad_position    = { format = .FLOAT3 },
-                ATTR_quad_color0      = { format = .FLOAT4 },
-                ATTR_quad_textcoord0  = { format = .FLOAT2 },
+                ATTR_cube_position    = { format = .FLOAT3 },
+                ATTR_cube_color0      = { format = .FLOAT4 },
+                ATTR_cube_textcoord0  = { format = .FLOAT2 },
             },
+        },
+        index_type = .UINT16,
+        cull_mode  = .BACK,
+        depth = {
+            write_enabled = true,
+            compare = .LESS_EQUAL,
         },
     })
 
@@ -112,13 +162,22 @@ init :: proc "c" () {
 
     state.pass_action = {
         colors = {
-            0 = {load_action = .CLEAR, clear_value = {0,0,0,1}},
+            0 = {load_action = .CLEAR, clear_value = {.5,0,0,1}},
         },
     }
 }
 
 frame :: proc "c" () {
     context = runtime.default_context()
+
+    dt := f32(sapp.frame_duration())
+    state.rx += 60 * dt
+    state.ry += 120 * dt
+
+    vs_params := Vs_Params {
+        mvp = compute_mvp_matrix(state.rx, state.ry),
+    }
+
     sg.begin_pass({
         action    = state.pass_action,
         swapchain = sglue.swapchain(),
@@ -129,7 +188,14 @@ frame :: proc "c" () {
         ub_slot = UB_Tint,
         data    = { ptr = &state.tint_params, size = size_of(state.tint_params) }, 
     )
-    sg.draw(0,6,1)
+    sg.apply_uniforms(
+        ub_slot = UB_vs_params,
+        data = {
+            ptr = &vs_params,
+            size = size_of(vs_params),
+        },
+    )
+    sg.draw(0,36,1)
     sg.end_pass()
     sg.commit()
 }
@@ -160,6 +226,15 @@ main :: proc() {
     })
 }
 
+compute_mvp_matrix :: proc (rx, ry: f32) -> Mat4 {
+    proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 10.0)
+	view := linalg.matrix4_look_at_f32({0.0, -1.5, -6.0}, {}, {0.0, 1.0, 0.0})
+	view_proj := proj * view
+	rxm := linalg.matrix4_rotate_f32(rx * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+	rym := linalg.matrix4_rotate_f32(ry * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+	model := rxm * rym
+	return view_proj * model
+}
 
 @(require_results)
 read_entire_file :: proc(name: string, allocator := context.allocator, loc := #caller_location) -> (data: []byte, success: bool) {
