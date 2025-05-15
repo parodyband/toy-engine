@@ -8,51 +8,44 @@ import "core:path/filepath"
 import "core:time"
 import "core:strconv"
 
-// Build types
+// Supported build targets
 BuildType :: enum {
     Desktop,
     Web,
 }
 
-// Build configuration parameters
+// Configuration for the build process
 CONFIG :: struct {
-    // Project structure
-    source_dir:        string,
-    assets_dir:        string,
-    output_dir:        string,
+    source_dir:         string,
+    assets_dir:         string,
+    output_dir:         string,
     
-    // Output executables
-    executable_name:   string,
+    executable_name:    string,
     
-    // Shader compilation
-    shader_input:      string,
-    shader_output:     string,
-    shader_formats:    string,
+    shader_input:       string,
+    shader_output:      string,
+    shader_formats:     string,
     
-    // Web-specific options
     emscripten_sdk_dir: string,
     emscripten_flags:   string,
     
-    // Build options
-    build_type:        BuildType,
-    debug_build:       bool,
-    optimization:      string,
+    build_type:         BuildType,
+    debug_build:        bool,
+    optimization:       string,
 }
 
-// Fix CONFIG initialization with hard-coded values
 when ODIN_OS == .Windows {
     DEFAULT_EMSCRIPTEN_DIR :: "c:/emsdk"
     DEFAULT_EMSCRIPTEN_FLAGS :: "-sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS"
 } else {
-    DEFAULT_EMSCRIPTEN_DIR :: "$HOME/repos/emsdk"
+    DEFAULT_EMSCRIPTEN_DIR :: "$HOME/emsdk"
     DEFAULT_EMSCRIPTEN_FLAGS :: "-sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS -sALLOW_MEMORY_GROWTH=1"
 }
 
-// Default configuration
 SETTINGS := CONFIG{
     source_dir        = "source",
     assets_dir        = "assets",
-    output_dir        = "", // Will be set based on build type
+    output_dir        = "",
     
     executable_name   = "ToyGame",
     
@@ -60,7 +53,6 @@ SETTINGS := CONFIG{
     shader_output     = "source/shader.odin",
     shader_formats    = "glsl300es:hlsl4:glsl430",
     
-    // Web-specific options - use platform defaults
     emscripten_sdk_dir = DEFAULT_EMSCRIPTEN_DIR,
     emscripten_flags   = DEFAULT_EMSCRIPTEN_FLAGS,
     
@@ -69,7 +61,7 @@ SETTINGS := CONFIG{
     optimization      = "none",
 }
 
-// Platform-specific paths
+// Platform-specific configurations
 PLATFORM_CONFIG :: struct {
     separator:             string,
     sokol_shdc_path:       string,
@@ -128,11 +120,11 @@ join_path :: proc(components: []string, allocator := context.allocator) -> strin
     return filepath.join(components, allocator)
 }
 
+// Sets up Emscripten environment for web builds
 setup_emscripten :: proc() -> bool {
     fmt.println("Setting up Emscripten environment...")
     
     when ODIN_OS == .Windows {
-        // Windows setup with emsdk_env.bat
         os.set_env("EMSDK_QUIET", "1")
         env_cmd := []string{"cmd", "/c", "call", fmt.tprintf("%s\\emsdk_env.bat", SETTINGS.emscripten_sdk_dir)}
         if !run_command(env_cmd) {
@@ -140,7 +132,6 @@ setup_emscripten :: proc() -> bool {
             return false
         }
     } else {
-        // Unix setup with emsdk_env.sh
         os.set_env("EMSDK_QUIET", "1")
         env_script := fmt.tprintf("%s/emsdk_env.sh", SETTINGS.emscripten_sdk_dir)
         if os.exists(env_script) {
@@ -155,6 +146,7 @@ setup_emscripten :: proc() -> bool {
     return true
 }
 
+// Compiles shaders using sokol-shdc
 build_shaders :: proc() -> bool {
     fmt.println("Building shaders...")
     
@@ -172,12 +164,10 @@ build_shaders :: proc() -> bool {
 build_desktop :: proc() -> bool {
     out_dir := SETTINGS.output_dir
     
-    // Create output directory
     if !os.exists(out_dir) {
         os.make_directory(out_dir, 0)
     }
     
-    // Build the executable
     fmt.println("Building desktop application...")
     build_command: []string
     
@@ -223,7 +213,6 @@ build_desktop :: proc() -> bool {
         return false
     }
     
-    // Copy assets
     fmt.println("Copying assets...")
     copy_command: []string
     
@@ -239,7 +228,7 @@ build_desktop :: proc() -> bool {
     return run_command(copy_command)
 }
 
-// Add a helper function to replace paths for Windows
+// Handles platform-specific path separators
 replace_path_separators :: proc(path: string) -> string {
     when ODIN_OS == .Windows {
         new_path, _ := strings.replace_all(path, "/", "\\")
@@ -252,19 +241,16 @@ replace_path_separators :: proc(path: string) -> string {
 build_web :: proc() -> bool {
     out_dir := SETTINGS.output_dir
     
-    // Create output directory
     if !os.exists(out_dir) {
         os.make_directory(out_dir, 0)
     }
     
-    // No need to set up environment variables, we'll use direct paths
     when ODIN_OS == .Windows {
         os.set_env("EMSDK_QUIET", "1")
     } else {
         os.set_env("EMSDK_QUIET", "1")
     }
     
-    // Build the WASM object
     fmt.println("Building WASM object...")
     
     game_out_path := fmt.tprintf("%s/game", out_dir)
@@ -272,6 +258,7 @@ build_web :: proc() -> bool {
         game_out_path, _ = strings.replace_all(game_out_path, "/", "\\")
     }
     
+    // Build the Odin code targeting wasm
     build_command := make([dynamic]string, 0, 16)
     append(&build_command, "odin")
     append(&build_command, "build")
@@ -282,7 +269,6 @@ build_web :: proc() -> bool {
     append(&build_command, "-strict-style")
     append(&build_command, fmt.tprintf("-out:%s", game_out_path))
     
-    // Both scripts use debug mode
     append(&build_command, "-debug")
     
     if !run_command(build_command[:]) {
@@ -290,7 +276,6 @@ build_web :: proc() -> bool {
         return false
     }
     
-    // Copy Odin JS runtime
     fmt.println("Copying Odin JS runtime...")
     odin_root_cmd := []string{"odin", "root"}
     desc := os2.Process_Desc{
@@ -328,13 +313,13 @@ build_web :: proc() -> bool {
         }
     }
     
-    // Link with Emscripten - use direct path to emcc
+    // Link with Emscripten to create final wasm + HTML
     fmt.println("Linking with Emscripten...")
     
     wasm_obj := fmt.tprintf("%s/game.wasm.o", out_dir)
     html_out := fmt.tprintf("%s/index.html", out_dir)
     
-    // Prepare sokol library paths
+    // Prepare sokol library paths for linking
     sokol_libs := []string{
         fmt.tprintf("%s/sokol/app/sokol_app_wasm_gl_release.a", SETTINGS.source_dir),
         fmt.tprintf("%s/sokol/glue/sokol_glue_wasm_gl_release.a", SETTINGS.source_dir),
@@ -352,33 +337,28 @@ build_web :: proc() -> bool {
         html_out, _ = strings.replace_all(html_out, "/", "\\")
     }
     
-    // Build emcc command with direct path
     emcc_cmd := make([dynamic]string, 0, 32)
     
-    // Use direct path to emcc.bat
     when ODIN_OS == .Windows {
         append(&emcc_cmd, fmt.tprintf("%s\\upstream\\emscripten\\emcc.bat", SETTINGS.emscripten_sdk_dir))
     } else {
         append(&emcc_cmd, fmt.tprintf("%s/upstream/emscripten/emcc", SETTINGS.emscripten_sdk_dir))
     }
     
-    append(&emcc_cmd, "-g") // Always include debug flag as in original scripts
+    append(&emcc_cmd, "-g")
     append(&emcc_cmd, "-o")
     append(&emcc_cmd, html_out)
     append(&emcc_cmd, wasm_obj)
     
-    // Add sokol libs
     for lib in sokol_libs {
         append(&emcc_cmd, lib)
     }
     
-    // Add all flags
     flags := strings.split(SETTINGS.emscripten_flags, " ")
     for flag in flags {
         append(&emcc_cmd, flag)
     }
     
-    // Add shell-file
     shell_file := fmt.tprintf("%s/web/index_template.html", SETTINGS.source_dir)
     when ODIN_OS == .Windows {
         shell_file, _ = strings.replace_all(shell_file, "/", "\\")
@@ -386,14 +366,11 @@ build_web :: proc() -> bool {
     append(&emcc_cmd, "--shell-file")
     append(&emcc_cmd, shell_file)
     
-    // Add preload file
     append(&emcc_cmd, "--preload-file")
     append(&emcc_cmd, SETTINGS.assets_dir)
     
-    // Run emcc
     emcc_success := false
     when ODIN_OS == .Windows {
-        // Use cmd /c directly with the command
         if !run_command(emcc_cmd[:]) {
             fmt.println("Emscripten linking failed")
             return false
@@ -408,7 +385,6 @@ build_web :: proc() -> bool {
         return false
     }
     
-    // Clean up temporary file
     fmt.println("Cleaning up...")
     when ODIN_OS == .Windows {
         del_cmd := []string{"cmd", "/c", "del", wasm_obj}
@@ -421,12 +397,12 @@ build_web :: proc() -> bool {
     return true
 }
 
-// Fix the background command function to use the correct approach in Odin
+// Runs a command in background (platform specific)
 run_command_background :: proc(command: []string) -> bool {
     fmt.println("Running in background:", strings.join(command, " "))
     
     when ODIN_OS == .Windows {
-        // For Windows, we'll use start cmd to run in background
+        // Windows requires special handling for background processes
         start_cmd := make([dynamic]string)
         defer delete(start_cmd)
         
@@ -436,22 +412,19 @@ run_command_background :: proc(command: []string) -> bool {
         append(&start_cmd, "cmd")
         append(&start_cmd, "/c")
         
-        // Add the original command
         for arg in command {
             append(&start_cmd, arg)
         }
         
-        // Now run it with normal run_command, but it will launch a new window
         return run_command(start_cmd[:])
     } else {
-        // For Unix, add & to run in background
+        // Unix background process with &
         bg_cmd := make([dynamic]string)
         defer delete(bg_cmd)
         
         append(&bg_cmd, "sh")
         append(&bg_cmd, "-c")
         
-        // Join original command and add & to run in background
         cmd_str := fmt.tprintf("%s &", strings.join(command, " "))
         append(&bg_cmd, cmd_str)
         
@@ -459,26 +432,21 @@ run_command_background :: proc(command: []string) -> bool {
     }
 }
 
-// Windows-specific server starting approach
+// Starts a web server to serve the web build, trying ports until one works
 start_web_server :: proc(dir: string, initial_port: int) -> bool {
-    // Try multiple ports starting from initial_port
     port := initial_port
-    max_port := initial_port + 10  // Try up to 10 ports
+    max_port := initial_port + 10
     
-    // Make sure the directory is properly formatted
     abs_dir := dir
     fmt.println("Starting web server in directory:", abs_dir)
     
     when ODIN_OS == .Windows {
-        // Keep trying ports until one works
         for port <= max_port {
             fmt.println("Attempting to start web server on port", port)
             
-            // Construct the URL with the current port
             url := fmt.tprintf("http://localhost:%d", port)
             
-            // Create a PowerShell command to start both the server and browser
-            // PowerShell's Start-Process is truly non-blocking
+            // PowerShell script to launch both server and browser
             ps_script := fmt.tprintf(
                 `$ErrorActionPreference = 'SilentlyContinue'; 
                 $server = Start-Process python -ArgumentList '-m','http.server','%d','-d','%s' -WindowStyle Normal -PassThru;
@@ -487,13 +455,11 @@ start_web_server :: proc(dir: string, initial_port: int) -> bool {
                 port, abs_dir, url
             )
             
-            // Launch PowerShell with the script
             ps_cmd := []string{
                 "powershell", "-Command", ps_script
             }
             
             if run_command(ps_cmd) {
-                // Print server information
                 fmt.println("Web server started at", url)
                 fmt.println("")
                 fmt.println("If your browser doesn't open automatically, please copy and paste this URL:")
@@ -503,39 +469,31 @@ start_web_server :: proc(dir: string, initial_port: int) -> bool {
                 return true
             }
             
-            // Try the next port
             port += 1
         }
         
         fmt.println("Failed to start web server after trying multiple ports")
         return false
     } else {
-        // Unix version with similar but simpler approach
         for port <= max_port {
             fmt.println("Attempting to start web server on port", port)
             
-            // Construct the URL with the current port
             url := fmt.tprintf("http://localhost:%d", port)
             
-            // Run two separate processes with nohup in Unix
-            // First the server
             server_cmd := []string{
                 "sh", "-c", 
                 fmt.tprintf("cd %s && nohup python -m http.server %d >/dev/null 2>&1 &", abs_dir, port)
             }
             
             if run_command(server_cmd) {
-                // Give the server time to start
                 time.sleep(2 * time.Second)
                 
-                // Now try to launch the browser separately
                 browser_cmd := []string{
                     "sh", "-c",
                     fmt.tprintf("nohup xdg-open %s >/dev/null 2>&1 &", url)
                 }
                 run_command(browser_cmd)
                 
-                // Print information
                 fmt.println("Web server started at", url)
                 fmt.println("")
                 fmt.println("If your browser doesn't open automatically, please copy and paste this URL:")
@@ -545,7 +503,6 @@ start_web_server :: proc(dir: string, initial_port: int) -> bool {
                 return true
             }
             
-            // Try the next port
             port += 1
         }
         
@@ -557,15 +514,11 @@ start_web_server :: proc(dir: string, initial_port: int) -> bool {
 main :: proc() {
     context.allocator = runtime.default_allocator()
     
-    // Add imports at the top of the file
-    // import "core:time"
-    
-    // Default settings
     web_build := false
     start_server := false
     server_port := 8000
     
-    // Simple command line argument parsing
+    // Parse command line arguments
     args := os.args
     if len(args) > 1 {
         for i := 1; i < len(args); i += 1 {
@@ -575,11 +528,10 @@ main :: proc() {
                 web_build = true
             } else if arg == "--serve" || arg == "-serve" || arg == "--server" || arg == "-server" {
                 start_server = true
-                // Check if next arg is a port number
                 if i + 1 < len(args) {
                     if port, ok := strconv.parse_int(args[i+1]); ok {
                         server_port = int(port)
-                        i += 1 // Skip the port number arg
+                        i += 1
                     }
                 }
             } else if strings.has_prefix(arg, "--port=") {
@@ -612,7 +564,7 @@ main :: proc() {
         }
     }
     
-    // Set build configuration based on arguments
+    // Configure build settings based on arguments
     if web_build {
         SETTINGS.build_type = .Web
         SETTINGS.output_dir = "build/web"
@@ -621,10 +573,8 @@ main :: proc() {
         SETTINGS.output_dir = "build/desktop"
     }
     
-    // Initialize platform-specific configuration
     init_platform_config()
     
-    // Adjust paths for Windows
     when ODIN_OS == .Windows {
         SETTINGS.output_dir, _ = strings.replace_all(SETTINGS.output_dir, "/", "\\")
     }
@@ -636,13 +586,11 @@ main :: proc() {
     fmt.println("Build type:", SETTINGS.build_type)
     fmt.println("Output directory:", SETTINGS.output_dir)
     
-    // Build shaders first (common for both build types)
     if !build_shaders() {
         fmt.println("Shader compilation failed")
         os.exit(1)
     }
     
-    // Execute the appropriate build type
     build_success := false
     
     switch SETTINGS.build_type {
@@ -664,7 +612,6 @@ main :: proc() {
         os.exit(1)
     }
     
-    // After a successful web build, start the server if requested
     if build_success && web_build && start_server {
         start_web_server(SETTINGS.output_dir, server_port)
     }
