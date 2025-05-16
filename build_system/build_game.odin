@@ -517,6 +517,7 @@ main :: proc() {
     web_build := false
     start_server := false
     server_port := 8000
+    run_executable := false
     
     // Parse command line arguments
     args := os.args
@@ -549,6 +550,8 @@ main :: proc() {
                 SETTINGS.output_dir = strings.trim_prefix(arg, "--out=")
             } else if strings.has_prefix(arg, "--emsdk=") {
                 SETTINGS.emscripten_sdk_dir = strings.trim_prefix(arg, "--emsdk=")
+            } else if arg == "--run" {
+                run_executable = true
             } else if arg == "--help" || arg == "-h" {
                 fmt.println("Usage: build_game [options]")
                 fmt.println("Options:")
@@ -559,6 +562,7 @@ main :: proc() {
                 fmt.println("  --opt=<level>   Optimization level (none, speed, size)")
                 fmt.println("  --out=<dir>     Override output directory")
                 fmt.println("  --emsdk=<dir>   Path to Emscripten SDK directory")
+                fmt.println("  --run           Run the executable after a successful desktop build")
                 os.exit(0)
             }
         }
@@ -614,5 +618,17 @@ main :: proc() {
     
     if build_success && web_build && start_server {
         start_web_server(SETTINGS.output_dir, server_port)
+    }
+
+    // Run the executable if requested
+    if build_success && !web_build && run_executable {
+        exe_path: string
+        when ODIN_OS == .Windows {
+            exe_path = fmt.tprintf("%s\\%s%s", SETTINGS.output_dir, SETTINGS.executable_name, PLATFORM.executable_ext)
+        } else {
+            exe_path = fmt.tprintf("%s/%s%s", SETTINGS.output_dir, SETTINGS.executable_name, PLATFORM.executable_ext)
+        }
+        fmt.println("Running executable:", exe_path)
+        run_command_background([]string{exe_path})
     }
 } 

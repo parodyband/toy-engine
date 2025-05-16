@@ -132,13 +132,15 @@ init :: proc "c" () {
         } else {
             log.error(img_err)
         }
-
     } else {
         log.error("Failed Loading Texture")
     }
     //limits := sg.query_limits()
     state.bind.samplers[SMP_smp] = sg.make_sampler({
         max_anisotropy = 8,
+        min_filter = .LINEAR,
+        mag_filter = .LINEAR,
+        mipmap_filter = .LINEAR
     })
 
     state.pipeline = sg.make_pipeline({
