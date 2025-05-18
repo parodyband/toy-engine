@@ -51,7 +51,7 @@ SETTINGS := CONFIG{
     
     shader_input      = "source/shader.glsl",
     shader_output     = "source/shader.odin",
-    shader_formats    = "glsl300es:hlsl4:glsl430",
+    shader_formats    = "glsl300es:hlsl4:glsl430:metal_macos",
     
     emscripten_sdk_dir = DEFAULT_EMSCRIPTEN_DIR,
     emscripten_flags   = DEFAULT_EMSCRIPTEN_FLAGS,
@@ -79,6 +79,12 @@ init_platform_config :: proc() {
         PLATFORM.executable_ext = ".exe"
         PLATFORM.debug_file_ext = ".pdb"
         PLATFORM.emscripten_env_script = "emsdk_env.bat"
+    } else when ODIN_OS == .Darwin {
+        PLATFORM.separator = "/"
+        PLATFORM.sokol_shdc_path = "./sokol-shdc/osx_arm64/sokol-shdc"
+        PLATFORM.executable_ext = ".bin"
+        PLATFORM.debug_file_ext = ""
+        PLATFORM.emscripten_env_script = "emsdk_env.sh"
     } else {
         PLATFORM.separator = "/"
         PLATFORM.sokol_shdc_path = "./sokol-shdc/linux/sokol-shdc"

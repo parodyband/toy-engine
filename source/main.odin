@@ -8,7 +8,7 @@ import "core:image/png"
 import "core:slice"
 import "core:math/linalg"
 
-import "cgltf" // modified to work with wasm/ecc
+//import "cgltf" // modified to work with wasm/ecc
 // import mathf "math"
 
 import slog  "sokol/log"
@@ -20,7 +20,7 @@ import "web"
 
 _ :: web
 _ :: os
-_ :: cgltf
+//_ :: cgltf
 
 Mat4 :: matrix[4,4]f32
 Vec3 :: [3]f32
