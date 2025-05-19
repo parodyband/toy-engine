@@ -90,12 +90,12 @@ init :: proc "c" () {
     }
 
     cube_indices := [?]u16{
-        0, 1, 2,     0, 2, 3,
-		6, 5, 4,     7, 6, 4,
-		8, 9, 10,    8, 10, 11,
-		14, 13, 12,  15, 14, 12,
-		16, 17, 18,  16, 18, 19,
-		22, 21, 20,  23, 22, 20,
+      0,  1,  2,   0, 2, 3,
+  		6,  5,  4,   7, 6, 4,
+  		8,  9,  10,  8, 10, 11,
+  		14, 13, 12,  15, 14, 12,
+  		16, 17, 18,  16, 18, 19,
+  		22, 21, 20,  23, 22, 20,
     }
 
     glb_data, error := glTF2.load_from_file("assets/test.glb")
@@ -108,10 +108,14 @@ init :: proc "c" () {
             fmt.printfln("GLTF Json Error: %d", err)
         }
     }
-    
-    
+
 
     defer glTF2.unload(glb_data)
+
+    for mesh in glb_data.meshes {
+      fmt.printfln("Mesh found! Name: %s", mesh.name)
+    }
+
 
     // Bind the data
     state.bind.vertex_buffers[0] = sg.make_buffer({

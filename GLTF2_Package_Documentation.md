@@ -3,38 +3,39 @@
 This document provides an overview of the `gltf2` Odin package, designed for loading and parsing glTF 2.0 files (both `.gltf` and `.glb` formats).
 
 ## Table of Contents
-1.  [Overview](#overview)
-2.  [Usage Example: Accessing Mesh Data (Sokol Context)](#usage-example-accessing-mesh-data-sokol-context)
-3.  [Main API Procedures](#main-api-procedures)
-    *   [`load_from_file`](#load_from_file)
-    *   [`parse`](#parse)
-    *   [`unload`](#unload)
-4.  [Core Data Structures](#core-data-structures)
-    *   [`Data`](#data-struct)
-    *   [`Asset`](#asset-struct)
-    *   [`Scene`](#scene-struct)
-    *   [`Node`](#node-struct)
-    *   [`Mesh`](#mesh-struct)
-    *   [`Mesh_Primitive`](#mesh_primitive-struct)
-    *   [`Accessor`](#accessor-struct)
-    *   [`Buffer_View`](#buffer_view-struct)
-    *   [`Buffer`](#buffer-struct)
-    *   [`Material`](#material-struct)
-    *   [`Texture`](#texture-struct)
-    *   [`Image`](#image-struct)
-    *   [`Sampler`](#sampler-struct)
-    *   [`Animation`](#animation-struct)
-    *   [`Skin`](#skin-struct)
-    *   [`Camera`](#camera-struct)
-    *   [`Options`](#options-struct)
-5.  [Error Handling](#error-handling)
-    *   [`Error` (union)](#error-union)
-    *   [`GLTF_Error`](#gltf_error-struct)
-    *   [`JSON_Error`](#json_error-struct)
-6.  [Constants](#constants)
-7.  [Helper Procedures](#helper-procedures)
-    *   [`uri_parse`](#uri_parse)
-    *   [`uri_free`](#uri_free)
+- [Odin `glTF2` Package Documentation](#odin-gltf2-package-documentation)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Usage Example: Accessing Mesh Data (Sokol Context)](#usage-example-accessing-mesh-data-sokol-context)
+    - [`parse`](#parse)
+    - [`unload`](#unload)
+  - [Core Data Structures](#core-data-structures)
+    - [`Data` Struct](#data-struct)
+    - [`Asset` Struct](#asset-struct)
+    - [`Scene` Struct](#scene-struct)
+    - [`Node` Struct](#node-struct)
+    - [`Mesh` Struct](#mesh-struct)
+    - [`Mesh_Primitive` Struct](#mesh_primitive-struct)
+    - [`Accessor` Struct](#accessor-struct)
+    - [`Accessor_Sparse` Struct](#accessor_sparse-struct)
+    - [`Buffer_View` Struct](#buffer_view-struct)
+    - [`Buffer` Struct](#buffer-struct)
+    - [`Material` Struct](#material-struct)
+    - [`Texture` Struct](#texture-struct)
+    - [`Image` Struct](#image-struct)
+    - [`Sampler` Struct](#sampler-struct)
+    - [`Animation` Struct](#animation-struct)
+    - [`Skin` Struct](#skin-struct)
+    - [`Camera` Struct](#camera-struct)
+    - [`Options` Struct](#options-struct)
+  - [Error Handling](#error-handling)
+    - [`Error` (union)](#error-union)
+    - [`GLTF_Error` Struct](#gltf_error-struct)
+    - [`JSON_Error` Struct](#json_error-struct)
+  - [Constants](#constants)
+  - [Helper Procedures](#helper-procedures)
+    - [`uri_parse`](#uri_parse)
+    - [`uri_free`](#uri_free)
 
 ## Overview
 
@@ -142,6 +143,7 @@ main :: proc() {
 
     // --- 4. Access Vertex Normal Data (similar logic to positions) ---
     normal_accessor_idx, norm_ok := primitive.attributes["NORMAL"]
+    var normal_data_bytes: []byte
     if !norm_ok {
         fmt.println("Primitive has no NORMAL attribute.")
     } else {
@@ -152,23 +154,32 @@ main :: proc() {
                 buffer := gltf_data.buffers[buffer_view.buffer]
 
                 if raw_buffer_bytes, is_bytes := buffer.uri.([]byte); is_bytes {
+                    // Important: The accessor.byte_offset is relative to the start of its buffer_view.
+                    // The buffer_view.byte_offset is relative to the start of the buffer.
                     data_start_offset := int(buffer_view.byte_offset + accessor.byte_offset)
                     element_size := 3 * size_of(f32) // VEC3 of f32
                     data_end_offset := data_start_offset + int(accessor.count) * element_size
 
                     if data_end_offset <= len(raw_buffer_bytes) {
-                        normal_data_bytes := raw_buffer_bytes[data_start_offset:data_end_offset]
-                        fmt.printf("Vertex normal data: %d normals, %d bytes. Stride (from BufferView): %d
+                        normal_data_bytes = raw_buffer_bytes[data_start_offset:data_end_offset]
+                        fmt.printf("Vertex normal data: %d normals, %d bytes. Stride (from BufferView): %d, Accessor offset: %d
 ", 
-                                   accessor.count, len(normal_data_bytes), buffer_view.byte_stride)
+                                   accessor.count, len(normal_data_bytes), buffer_view.byte_stride, accessor.byte_offset)
                         // For Sokol: If normals are in a separate buffer, create another sg_buffer.
                         // If interleaved, define vertex layout and stride accordingly in sg_pipeline_desc.
+                        // The accessor.byte_offset would be used for the `offset` in `sg_pipeline_desc.layout.attrs`.
                     } else {
                         fmt.Println("Normal data range out of bounds in buffer.")
                     }
-                } // ... error handling for !is_bytes
-            } // ... error handling for wrong type/component_type
-        } // ... error handling for invalid accessor index
+                } else {
+                    fmt.Println("Normal buffer URI is not []byte (e.g. external file not yet loaded by this example).")
+                }
+            } else {
+                fmt.Println("NORMAL accessor is not VEC3 of FLOAT.")
+            }
+        } else {
+            fmt.Println("Invalid NORMAL accessor index.")
+        }
     }
 
     // --- 5. Access Index Buffer Data ---
@@ -259,9 +270,23 @@ main :: proc() {
     //
     //     // In sg_pipeline_desc:
     //     // pip_desc.layout.attrs[0].format = .FLOAT3 // For positions
-    //     // pip_desc.layout.attrs[1].format = .FLOAT3 // For normals (if present)
+    //     // pip_desc.layout.attrs[0].offset = 0      // Assuming positions start at offset 0 of their buffer segment
+    //     // if len(normal_data_bytes) > 0 {
+    //     //     pip_desc.layout.attrs[1].format = .FLOAT3 // For normals
+    //     //     // If positions and normals are interleaved in the *same* buffer_view, 
+    //     //     // and NORMAL accessor's byte_offset is, for example, 12 (after 3 floats for position),
+    //     //     // then you would set:
+    //     //     // pip_desc.layout.attrs[1].offset = 12 // (or more generally, the byte offset of normals within the interleaved stride)
+    //     //     // If they are in separate buffers or separate buffer_views mapped to different vertex buffers (bind.vertex_buffers[0], bind.vertex_buffers[1]),
+    //     //     // then their offsets would typically be 0 relative to their respective buffer bindings.
+    //     //     // Example:
+    //     //     // bind.vertex_buffers[0] = position_buffer
+    //     //     // bind.vertex_buffers[1] = normal_buffer
+    //     //     // pip_desc.layout.attrs[0] = { buffer_index = 0, offset = 0, format = .FLOAT3 }
+    //     //     // pip_desc.layout.attrs[1] = { buffer_index = 1, offset = 0, format = .FLOAT3 }
+    //     // }
     //     // ... define offsets if interleaved using layout.attrs[n].offset
-    //     // pip_desc.layout.buffers[0].stride = buffer_view.byte_stride (if using a single interleaved buffer)
+    //     // pip_desc.layout.buffers[0].stride = buffer_view.byte_stride (if using a single interleaved buffer for positions and normals)
     //     // pip_desc.index_type = sokol_index_type
     // }
     
