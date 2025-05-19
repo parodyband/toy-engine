@@ -59,6 +59,13 @@ Tint_Params :: struct { tint : [4]f32 }
 init :: proc "c" () {
 	context = runtime.default_context()
 
+	when IS_WEB {
+		context.allocator = web.emscripten_allocator()
+		context.temp_allocator = context.allocator
+		runtime.default_temp_allocator_destroy(&runtime.global_default_temp_allocator_data)
+		runtime.default_temp_allocator_init(&runtime.global_default_temp_allocator_data, 1*runtime.Megabyte, context.allocator)
+	}
+
 	sg.setup({
 		environment = sglue.environment(),
 		logger      = { func = slog.func },
@@ -270,7 +277,7 @@ init :: proc "c" () {
 		max_anisotropy = 8,
 		min_filter = .LINEAR,
 		mag_filter = .LINEAR,
-		mipmap_filter = .LINEAR
+		mipmap_filter = .LINEAR,
 	})
 
 	state.pipeline = sg.make_pipeline({
@@ -341,8 +348,8 @@ cleanup :: proc "c" () {
 main :: proc() {
 	when IS_WEB {
 		context.allocator = web.emscripten_allocator()
-
-		runtime.init_global_temporary_allocator(1*runtime.Megabyte)
+		// Use same allocator for temporary allocations to avoid wasm allocator usage
+		context.temp_allocator = context.allocator
 	}
 	context.logger = log.create_console_logger(lowest = .Info, opt = {.Level, .Short_File_Path, .Line, .Procedure})
 	sapp.run({

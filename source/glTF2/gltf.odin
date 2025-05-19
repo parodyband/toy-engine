@@ -5,10 +5,11 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:mem"
 import "core:os"
-import "core:path/filepath"
 import "core:strconv"
 import "core:strings"
+import "../web"
 
+IS_WASM_TARGET :: ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32
 
 GLB_MAGIC :: 0x46546c67
 GLB_HEADER_SIZE :: size_of(GLB_Header)
@@ -17,27 +18,103 @@ GLTF_MIN_VERSION :: 2
 
 
 /*
+    Simple filepath dir: returns content before the last '/' or "." if no '/'.
+    Used for all targets now for simplicity in glTF loading.
+*/
+_filepath_dir_simple :: proc(path: string) -> string {
+    last_slash := strings.last_index_byte(path, '/')
+    if last_slash < 0 {
+        // No slash found, Odin's filepath.dir returns "." in such cases.
+        return "." 
+    }
+    if last_slash == 0 { // Path like "/file"
+        return "/"
+    }
+    return path[:last_slash]
+}
+
+/*
+    Simple filepath ext: returns content from the last '.' or "" if no '.'.
+    Used for all targets now for simplicity in glTF loading.
+*/
+_filepath_ext_simple :: proc(path: string) -> string {
+    // Find the last dot.
+    last_dot := strings.last_index_byte(path, '.')
+    if last_dot < 0 {
+        return "" // No dot found.
+    }
+
+    // Ensure the dot is not the first character (e.g. ".bashrc")
+    // and that there's no slash after the dot (e.g. "folder.with.dot/file")
+    // For simplicity, we'll only check for slashes after the dot.
+    // A more robust check might be needed for complex cases, but this covers common glTF scenarios.
+    last_slash := strings.last_index_byte(path, '/')
+    if last_slash > last_dot {
+        return "" // Dot is part of a directory name, not an extension.
+    }
+    
+    return path[last_dot:]
+}
+
+
+/*
     Main library interface procedures
 */
 @(require_results)
 load_from_file :: proc(file_name: string, allocator := context.allocator) -> (data: ^Data, err: Error) {
-    if !os.exists(file_name) {
-        return nil, GLTF_Error{type = .No_File, proc_name = #procedure, param = {name = file_name}}
+    // Only call os.exists on non-WASM targets where it's reliable
+    when !IS_WASM_TARGET {
+        if !os.exists(file_name) {
+            return nil, GLTF_Error{type = .No_File, proc_name = #procedure, param = {name = file_name}}
+        }
     }
+    // For WASM, we proceed directly to os.read_entire_file.
+    // It should (when properly implemented in web.odin for example) handle file absence.
 
-    file_content, ok := os.read_entire_file(file_name, allocator)
+    file_content: []byte
+    ok: bool
+    when IS_WASM_TARGET {
+        file_content, ok = web.read_entire_file(file_name, allocator)
+    } else {
+        file_content, ok = os.read_entire_file(file_name, allocator)
+    }
     if !ok {
         return nil, GLTF_Error{type = .Cant_Read_File, proc_name = #procedure, param = {name = file_name}}
     }
 
-    gltf_dir := filepath.dir(file_name)
-    defer delete(gltf_dir)
+    gltf_dir := _filepath_dir_simple(file_name) // Always use simple version
+    file_ext_val := _filepath_ext_simple(file_name) // Always use simple version
+    file_ext: string
+
+    // Simplified to_lower for extensions, used for all targets now
+    if len(file_ext_val) > 0 {
+        temp_buf: [5]u8 
+        count := 0
+        for r in file_ext_val {
+            if count < len(temp_buf) -1 {
+                if 'A' <= r && r <= 'Z' {
+                    temp_buf[count] = byte(r + ('a' - 'A'))
+                } else {
+                    temp_buf[count] = byte(r)
+                }
+                count += 1
+            } else {
+                break
+            }
+        }
+        file_ext = string(temp_buf[:count])
+    } else {
+        file_ext = ""
+    }
+    
+    // No longer need to delete gltf_dir as _filepath_dir_simple doesn't allocate it in the same way.
 
     options := Options {
         delete_content = true,
-        gltf_dir       = gltf_dir,
+        gltf_dir       = gltf_dir, 
     }
-    switch strings.to_lower(filepath.ext(file_name), context.temp_allocator) {
+    
+    switch file_ext { 
     case ".gltf":
         return parse(file_content, options, allocator)
     case ".glb":
@@ -203,7 +280,7 @@ uri_parse :: proc(uri: Uri, gltf_dir: string) -> Uri {
         if !ok {
             return uri
         }
-        return cast([]byte)bytes
+        return bytes
     }
 
     type := str_data[:type_idx]
