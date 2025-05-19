@@ -8,8 +8,9 @@ import "core:image/png"
 import "core:slice"
 import "core:math/linalg"
 
-//import "cgltf" // modified to work with wasm/ecc
-// import mathf "math"
+import "core:fmt"
+
+import "glTF2"
 
 import slog  "sokol/log"
 import sapp  "sokol/app"
@@ -20,7 +21,7 @@ import "web"
 
 _ :: web
 _ :: os
-//_ :: cgltf
+_ :: glTF2
 
 Mat4 :: matrix[4,4]f32
 Vec3 :: [3]f32
@@ -96,6 +97,21 @@ init :: proc "c" () {
 		16, 17, 18,  16, 18, 19,
 		22, 21, 20,  23, 22, 20,
     }
+
+    glb_data, error := glTF2.load_from_file("assets/test.glb")
+
+    switch err in error {
+        case glTF2.GLTF_Error: {
+            fmt.printfln("GLTF Error: %d", err)
+        }
+        case glTF2.JSON_Error: {
+            fmt.printfln("GLTF Json Error: %d", err)
+        }
+    }
+    
+    
+
+    defer glTF2.unload(glb_data)
 
     // Bind the data
     state.bind.vertex_buffers[0] = sg.make_buffer({
