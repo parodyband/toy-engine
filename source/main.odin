@@ -23,9 +23,6 @@ _ :: web
 _ :: os
 _ :: glTF2
 
-// ATTR_cube_position :: 0 // Defined in shader.odin
-// ATTR_cube_normal   :: 1 // Defined in shader.odin
-
 Mat4 :: matrix[4,4]f32
 Vec3 :: [3]f32
 
@@ -41,10 +38,10 @@ state: struct {
 		index_count: int,
 }
 
-	ToyMesh :: struct {
+ToyMesh :: struct {
+	index_buffer_bytes : []byte,
 	vertex_buffer_bytes: []byte,
 	normal_buffer_bytes: []byte,
-	index_buffer_bytes : []byte,
 	uv_buffer_bytes    : []byte,
 	vertex_count       : int,
 	index_count        : int,
