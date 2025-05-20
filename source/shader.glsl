@@ -7,28 +7,25 @@ in vec4 position;
 in vec4 normal;
 in vec2 texcoord0;
 
-// Use an explicit std140 uniform block to avoid default-uniform collisions
 layout(std140, binding=0) uniform VSParams {
-    mat4 mvp;   // view-projection matrix
-    mat4 model; // per-mesh model matrix
+    mat4 mvp;
+    mat4 model;
 };
 
 out vec3 v_normal;
 out vec2 uv;
 
 void main() {
-    // First transform vertex position by the model matrix (world transform), then by view-projection
     gl_Position = mvp * model * position;
 
     // Transform normal by the model matrix only (no translation)
     v_normal    = normalize(mat3(model) * normal.xyz);
-    // v_color_0   = color0;
     uv          = texcoord0;
 }
 @end
 
 @fs fs
-in vec3 v_normal; // Input normal from vertex shader
+in vec3 v_normal; 
 in vec2 uv;
 
 out vec4 frag_color;
@@ -36,20 +33,35 @@ out vec4 frag_color;
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler   smp;
 
-// Tint colour in a dedicated std140 block, bound at slot 1 (fragment stage)
+layout(std140, binding=2) uniform MainLightParams {
+    vec3 light_direction;
+    vec4 light_color;
+};
+
 layout(std140, binding=1) uniform TintBlock {
     vec4 tint;
 };
 
-void main(){
-    vec3 lightDir = normalize(vec3(0.0, 0.0, -1.0)); // Fixed directional light from top down
-    vec3 norm = normalize(v_normal);
-    float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * vec3(1.0); // White light
+void main() {
+    vec3 ambient_rgb = vec3(0.5, 0.5, 0.6);
 
-    vec4 texColor = texture(sampler2D(tex,smp),uv); // Still using the texture lookup
-    frag_color = vec4(diffuse, 1.0) * texColor + tint; 
+    vec3 lightDir_normalized = normalize(light_direction);
+    vec3 surface_normal_normalized = normalize(v_normal);
 
+    float diffuse_intensity_factor = max(dot(surface_normal_normalized, lightDir_normalized), 0.0);
+
+    vec3 diffuse_light_contribution = diffuse_intensity_factor * light_color.rgb; // from MainLightParams.light_color
+
+    vec4 sampled_texture_color = texture(sampler2D(tex, smp), uv);
+    
+    vec4 current_tint_value = tint; // from TintBlock.tint
+
+    vec3 total_lighting_effect_rgb = ambient_rgb + diffuse_light_contribution;
+
+    vec3 effective_lighting_rgb = min(total_lighting_effect_rgb, vec3(1.0));
+
+    frag_color.rgb = sampled_texture_color.rgb * current_tint_value.rgb * effective_lighting_rgb;
+    frag_color.a = sampled_texture_color.a * current_tint_value.a;
 }
 @end
 

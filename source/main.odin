@@ -7,6 +7,7 @@ import "core:log"
 //import "core:image/png"
 //import "core:slice"
 import "core:math/linalg"
+import "core:math/linalg/glsl"
 
 import "core:fmt"
 import "core:math"
@@ -42,6 +43,42 @@ draw_call :: struct {
 
 draw_calls : [dynamic]draw_call
 
+light :: struct {
+    direction : [3]f32,
+    color     : [4]f32,
+}
+
+mainLight :: light {
+    direction = {-.2,1,-.2},
+    color     = {1,1,1,1}
+}
+
+camera :: struct {
+    fov : f32,
+    position : [3]f32,
+    rotation : [3]f32,
+}
+
+mainCamera := camera {
+    fov = 60,
+    position = {0,20,-40},
+    rotation = {0,0,0},
+}
+
+input_state :: struct {
+    mouse_delta: Vec3,
+    keys_down: map[sapp.Keycode]bool,
+    mouse_buttons_down: map[sapp.Mousebutton]bool,
+    mouse_locked: bool,
+}
+
+game_input := input_state{
+    mouse_delta = {0, 0, 0},
+    keys_down = make(map[sapp.Keycode]bool),
+    mouse_buttons_down = make(map[sapp.Mousebutton]bool),
+    mouse_locked = false,
+}
+
 init :: proc "c" () {
     context = runtime.default_context()
 
@@ -57,37 +94,68 @@ init :: proc "c" () {
         logger      = { func = slog.func },
     })
 
-    glb_data      := render.load_glb_data_from_file("assets/test.glb")
-    glb_mesh_data := render.load_mesh_from_glb_data(glb_data)
-    glb_texture   := render.load_texture_from_glb_data(glb_data)
+    {
+        glb_data      := render.load_glb_data_from_file("assets/test.glb")
+        glb_mesh_data := render.load_mesh_from_glb_data(glb_data)
+        glb_texture   := render.load_texture_from_glb_data(glb_data)
 
-    flask_mesh_renderer := render.mesh_renderer {
-        render_materials = {
-            0 = {
-                tint_color     = {1.0,1.0,1.0,1.0},
-                albedo_texture = glb_texture,
+        flask_mesh_renderer := render.mesh_renderer {
+            render_materials = []render.material{
+                { // Element 0
+                    tint_color     = {1.0,1.0,1.0,1.0},
+                    albedo_texture = glb_texture,
+                },
+            },
+            render_mesh = glb_mesh_data,
+            render_transform = {
+                position = {0,0,0},
+                rotation = {0,0,0},
+                scale    = {1,1,1},
             }
-        },
-        render_mesh = glb_mesh_data,
-        render_transform = {
-            position = {0,0,0},
-            rotation = {0,0,0},
-            scale    = {1,1,1},
         }
+
+        add_draw_call(flask_mesh_renderer, context.allocator)
+        defer glTF2.unload(glb_data)
     }
 
-    add_draw_call(flask_mesh_renderer)
+    {
+        glb_data      := render.load_glb_data_from_file("assets/floor.glb")
+        glb_mesh_data := render.load_mesh_from_glb_data(glb_data)
+        glb_texture   := render.load_texture_from_glb_data(glb_data)
 
-    defer glTF2.unload(glb_data)
+        floor_mesh_renderer := render.mesh_renderer {
+            render_materials = []render.material{
+                { // Element 0
+                    tint_color     = {1.0,1.0,1.0,1.0},
+                    albedo_texture = glb_texture,
+                },
+            },
+            render_mesh = glb_mesh_data,
+            render_transform = {
+                position = {0,0,0},
+                rotation = {0,0,0},
+                scale    = {1,1,1},
+            }
+        }
+
+        add_draw_call(floor_mesh_renderer, context.allocator)
+        defer glTF2.unload(glb_data)
+    }
 }
 
-add_draw_call :: proc(m : render.mesh_renderer) {
+add_draw_call :: proc(m : render.mesh_renderer, allocator: runtime.Allocator) {
 
     state : draw_call
 
     state.index_count = m.render_mesh.index_count
 
-    albedo_texture := m.render_materials[0].albedo_texture
+    if len(m.render_materials) == 0 {
+        log.error("add_draw_call: mesh_renderer (m) has no materials. Cannot create draw call.");
+        return;
+    }
+    current_material_from_m := m.render_materials[0] 
+
+    albedo_texture := current_material_from_m.albedo_texture
     state.bind.images[IMG_tex] = sg.make_image({
         width  = i32(albedo_texture.width),
         height = i32(albedo_texture.height),
@@ -164,7 +232,7 @@ add_draw_call :: proc(m : render.mesh_renderer) {
             },
         },
         index_type = .UINT16,
-        face_winding = .CCW,
+        face_winding = .CW,
         cull_mode  = .BACK,
         depth = {
             write_enabled = true,
@@ -175,16 +243,117 @@ add_draw_call :: proc(m : render.mesh_renderer) {
     
     state.index = len(draw_calls)
 
-    state.renderer = m
+    // Prepare state.renderer for long-term storage in draw_calls
+    state.renderer.render_mesh = m.render_mesh;           // Copy mesh struct (contains slices, but their data comes from glb_data which is alive)
+    state.renderer.render_transform = m.render_transform; // Copy transform struct
+
+    // Deep copy
+    if len(m.render_materials) > 0 {
+        cloned_materials_slice := make([]render.material, len(m.render_materials), allocator);
+        copy(cloned_materials_slice, m.render_materials); // This copies the material structs themselves
+        state.renderer.render_materials = cloned_materials_slice;
+    } else {
+        state.renderer.render_materials = nil; 
+    }
 
     append(&draw_calls, state)
 }
 
-update :: proc(time : f32, deltaTime : f32){
+event :: proc "c" (event: ^sapp.Event) {
+    context = runtime.default_context()
+    
+    #partial switch event.type {
+        case .MOUSE_MOVE:
+            game_input.mouse_delta = {event.mouse_dx, event.mouse_dy, 0}
+            
+        case .KEY_DOWN:
+            game_input.keys_down[event.key_code] = true
+            
+        case .KEY_UP:
+            game_input.keys_down[event.key_code] = false
+            
+        case .MOUSE_DOWN:
+            game_input.mouse_buttons_down[event.mouse_button] = true
+            
+            // Lock/unlock mouse with right mouse button
+            if event.mouse_button == .RIGHT {
+                sapp.lock_mouse(!game_input.mouse_locked)
+                game_input.mouse_locked = !game_input.mouse_locked
+            }
+            
+        case .MOUSE_UP:
+            game_input.mouse_buttons_down[event.mouse_button] = false
+    }
+}
+
+update :: proc(time: f32, deltaTime: f32) {
+    // --- Camera movement with tracked input state ---
+    move_speed: f32 = 30.0
+    rot_speed:  f32 = 0.3
+
+    // Mouse look
+    mouse_dx := game_input.mouse_delta.x
+    mouse_dy := game_input.mouse_delta.y
+    if game_input.mouse_locked {
+        mainCamera.rotation.y += mouse_dx * rot_speed
+        mainCamera.rotation.x += mouse_dy * rot_speed
+        // Clamp pitch to avoid flipping
+        mainCamera.rotation.x = glsl.clamp(mainCamera.rotation.x, -89.0, 89.0)
+    }
+    // Reset mouse delta after using it
+    game_input.mouse_delta = {0, 0, 0}
+
+    // WASD movement
+    pitch_rad := glsl.radians(mainCamera.rotation.x)
+    yaw_rad := glsl.radians(mainCamera.rotation.y)
+
+    // Calculate forward vector (camera forward) based on yaw (Y) and pitch (X)
+    forward: Vec3 = {
+        glsl.sin(yaw_rad) * glsl.cos(pitch_rad),
+        -glsl.sin(pitch_rad),
+        glsl.cos(yaw_rad) * glsl.cos(pitch_rad)
+    }
+
+    // Calculate right vector (camera right) perpendicular to forward and world up
+    right: Vec3 = {
+        glsl.cos(yaw_rad),
+        0,
+        -glsl.sin(yaw_rad)
+    }
+
+    // World up vector
+    up: Vec3 = {0, 1, 0}
+
+    move: Vec3 = {0, 0, 0}
+    if game_input.keys_down[.W] {
+        move += forward
+    }
+    if game_input.keys_down[.S] {
+        move -= forward
+    }
+    if game_input.keys_down[.A] {
+        move -= right
+    }
+    if game_input.keys_down[.D] {
+        move += right
+    }
+    if game_input.keys_down[.Q] {
+        move += up
+    }
+    if game_input.keys_down[.E] {
+        move -= up
+    }
+
+    // Normalize move vector if moving diagonally
+    if glsl.length(move) > 0.001 {
+        move = glsl.normalize(move)
+        mainCamera.position += move * move_speed * deltaTime
+    }
+
+    // Example: Animate first draw_call's rotation for demo
     if len(draw_calls) > 0 {
-        draw_calls[0].renderer.render_transform.position.y = -10 + math.abs((1.0 * math.sin(time * 0.03))) * 4
-		draw_calls[0].renderer.render_transform.rotation.y += deltaTime * 50
-		draw_calls[0].renderer.render_transform.scale.y = math.abs(1.0 * math.sin(time * 0.03)) * .5 + .5
+        draw_calls[0].renderer.render_transform.rotation.y += deltaTime * 50
+        //draw_calls[0].renderer.render_transform.position.y = math.abs(math.sin(time * 0.05))
     }
 }
 
@@ -203,11 +372,11 @@ frame :: proc "c" () {
     }
 
     sg.begin_pass({
-        action    = clear_pass, // only clear once, from first draw call
+        action    = clear_pass,
         swapchain = sglue.swapchain(),
     })
     
-    vp_matrix := compute_mvp_matrix()
+    vp_matrix := compute_camera_view_projection_matrix(mainCamera.position, mainCamera.rotation)
 
     for i in 0..<len(draw_calls) {
         
@@ -218,31 +387,39 @@ frame :: proc "c" () {
         sg.apply_pipeline(draw_calls[i].pipeline)
         sg.apply_bindings(draw_calls[i].bind)
     
-        // Build per-draw-call uniform params including model matrix
         vs_params : Vsparams
         vs_params.mvp   = vp_matrix
         vs_params.model = compute_model_matrix(draw_calls[i].renderer.render_transform)
 
-        // Create a 16-byte aligned temporary for the tint color uniform data
-        // The Tint struct is defined in shader.odin and is #align(16)
         aligned_tint_uniform: Tintblock
         aligned_tint_uniform.tint = draw_calls[i].renderer.render_materials[0].tint_color
+        //fmt.printf("Debug tint: %v\n", aligned_tint_uniform.tint) // DEBUG LINE
 
-        // Apply vertex shader uniforms first
+        light_direction_uniform: Mainlightparams
+        light_direction_uniform.light_direction = mainLight.direction
+        light_direction_uniform.light_color     = mainLight.color
+
         sg.apply_uniforms(
-            ub_slot = UB_VSParams, // Slot 0, for vertex shader
+            ub_slot = UB_VSParams,
             data = {
                 ptr = &vs_params,
                 size = size_of(vs_params),
             },
         )
 
-        // Then apply fragment shader tint uniform so it ends up last in the ring-buffer for this draw call
         sg.apply_uniforms(
-            ub_slot = UB_TintBlock, // Slot 1, for fragment shader
+            ub_slot = UB_TintBlock,
             data = {
                 ptr = &aligned_tint_uniform,
                 size = size_of(Tintblock),
+            },
+        )
+
+        sg.apply_uniforms(
+            ub_slot = UB_MainLightParams,
+            data = {
+                ptr = &light_direction_uniform,
+                size = size_of(Mainlightparams)
             },
         )
     
@@ -251,7 +428,6 @@ frame :: proc "c" () {
     
     sg.end_pass()
     sg.commit()
-    
 }
 
 cleanup :: proc "c" () {
@@ -270,6 +446,7 @@ main :: proc() {
         init_cb      = init,
         frame_cb     = frame,
         cleanup_cb   = cleanup,
+        event_cb     = event,
         width        = 700,
         height       = 700,
         window_title = "Window",
@@ -280,29 +457,48 @@ main :: proc() {
     })
 }
 
-compute_mvp_matrix :: proc () -> Mat4 {
+compute_camera_view_projection_matrix :: proc (position : [3]f32, rotation : [3]f32) -> Mat4 {
     proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 100.0)
-    view := linalg.matrix4_look_at_f32({0.0, 10, -25.0}, {}, {0.0, 1.0, 0.0})
-    // Previously this function returned view_proj * model, but the model transformation is now supplied per-mesh.
-    // We keep the signature intact, but ignore rx/ry and just compute view-projection matrix.
-    return proj * view
+    
+    // Create INVERSE rotation matrices for camera orientation
+    // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
+    inv_rot_pitch := linalg.matrix4_rotate_f32(-rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+    inv_rot_yaw   := linalg.matrix4_rotate_f32(-rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+    inv_rot_roll  := linalg.matrix4_rotate_f32(-rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+    
+    // Create translation matrix for camera position (inverse of camera's world translation)
+    trans := linalg.matrix4_translate_f32({-position[0], -position[1], -position[2]})
+    
+    // View matrix V = R_inverse * T_inverse
+    // R_inverse from Yaw, then Pitch, then Roll camera orientation: (Roll_inv * Pitch_inv * Yaw_inv)
+    // This makes the camera rotate around its own position.
+    view_rotation_inv := inv_rot_roll * inv_rot_pitch * inv_rot_yaw
+    view := view_rotation_inv * trans
+    
+    // flip Z axis so +Z is forward (Unity-style) leaving +Y up, requires front face winding swap
+    flip_z := linalg.matrix4_scale_f32({1.0, 1.0, -1.0})
+    return proj * flip_z * view
 }
 
 // Compute a model matrix from a render.transform (position, rotation (deg), scale)
 compute_model_matrix :: proc(t: render.transform) -> Mat4 {
-    // Translation
     trans := linalg.matrix4_translate_f32({t.position[0], t.position[1], t.position[2]})
 
     // Rotation matrices (convert degrees to radians)
-    rot_x := linalg.matrix4_rotate_f32(t.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
-    rot_y := linalg.matrix4_rotate_f32(t.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
-    rot_z := linalg.matrix4_rotate_f32(t.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+    // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
+    rot_pitch := linalg.matrix4_rotate_f32(t.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+    rot_yaw   := linalg.matrix4_rotate_f32(t.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+    rot_roll  := linalg.matrix4_rotate_f32(t.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
 
     // Scale matrix
     scale := linalg.matrix4_scale_f32({t.scale[0], t.scale[1], t.scale[2]})
 
-    // Combine: T * Rz * Ry * Rx * S (typical order)
-    return trans * rot_z * rot_y * rot_x * scale
+    // Combine rotations: roll, then pitch, then yaw (matching camera rotation order)
+    rot_combined := rot_yaw * rot_pitch * rot_roll
+
+    // Final model matrix: T * R * S (Translation * Rotation * Scale)
+    // This ensures objects rotate and scale around their own origin point
+    return trans * rot_combined * scale
 }
 
 @(require_results)
