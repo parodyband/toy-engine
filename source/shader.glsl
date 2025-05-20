@@ -39,7 +39,7 @@ layout(binding=1) uniform Tint {
 };
 
 void main(){
-    vec3 lightDir = normalize(-vec3(0.5, 0.8, 1.0)); // Fixed directional light
+    vec3 lightDir = normalize(vec3(0.0, 0.0, -1.0)); // Fixed directional light from top down
     vec3 norm = normalize(v_normal);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = diff * vec3(1.0); // White light
