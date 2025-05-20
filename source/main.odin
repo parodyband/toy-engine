@@ -30,15 +30,16 @@ Vec3 :: [3]f32
 
 IS_WEB :: ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32
 
-state: struct {
+draw_call :: struct {
+    index      : int,
     pipeline   : sg.Pipeline,
     bind       : sg.Bindings,
-    pass_action: sg.Pass_Action,
     tint_params: Tint_Params,
-    rx         : f32,
-    ry         : f32,
     index_count: int,
+    skip_render: bool,
 }
+
+draw_calls : [dynamic]draw_call
 
 Tint_Params :: struct { tint : [4]f32 }
 
@@ -62,39 +63,46 @@ init :: proc "c" () {
     glb_texture   := render.load_texture_from_glb_data(glb_data)
 
     flask_mesh_renderer := render.mesh_renderer {
-    	render_materials = {
-    		0 = {
-    			tint_color     = {1,1,1,1},
-    			albedo_texture = glb_texture,
-    		}
-    	},
-    	render_mesh = glb_mesh_data,
-    	render_transfrom = {
-    		position = {0,0,0},
-    		rotation = {0,0,0},
-    		scale    = {1,1,1},
-    	}
+        render_materials = {
+            0 = {
+                tint_color     = {1,1,1,1},
+                albedo_texture = glb_texture,
+            }
+        },
+        render_mesh = glb_mesh_data,
+        render_transfrom = {
+            position = {0,0,0},
+            rotation = {0,0,0},
+            scale    = {1,1,1},
+        }
     }
 
-	defer glTF2.unload(glb_data)
+    add_draw_call(flask_mesh_renderer)
 
+    defer glTF2.unload(glb_data)
+}
 
-    state.index_count = glb_mesh_data.index_count
+add_draw_call :: proc(m : render.mesh_renderer) {
 
+    state : draw_call
+
+    state.index_count = m.render_mesh.index_count
+
+    albedo_texture := m.render_materials[0].albedo_texture
     state.bind.images[IMG_tex] = sg.make_image({
-        width  = i32(glb_texture.width),
-        height = i32(glb_texture.height),
+        width  = i32(albedo_texture.width),
+        height = i32(albedo_texture.height),
         data = { subimage = { 0 = { 0 = {
-            ptr  = glb_texture.final_pixels_ptr,
-            size = glb_texture.final_pixels_size,
+            ptr  = albedo_texture.final_pixels_ptr,
+            size = albedo_texture.final_pixels_size,
         }}}},
     })
 
-    if len(glb_mesh_data.vertex_buffer_bytes) > 0 {
+    if len(m.render_mesh.vertex_buffer_bytes) > 0 {
         state.bind.vertex_buffers[0] = sg.make_buffer({
             data = {
-                ptr  = raw_data(glb_mesh_data.vertex_buffer_bytes),
-                size = uint(len(glb_mesh_data.vertex_buffer_bytes)),
+                ptr  = raw_data(m.render_mesh.vertex_buffer_bytes),
+                size = uint(len(m.render_mesh.vertex_buffer_bytes)),
             },
         })
     } else {
@@ -102,11 +110,11 @@ init :: proc "c" () {
     }
 
     // Create and bind normal buffer if data was loaded
-    if len(glb_mesh_data.normal_buffer_bytes) > 0 {
+    if len(m.render_mesh.normal_buffer_bytes) > 0 {
         state.bind.vertex_buffers[1] = sg.make_buffer({
             data = {
-                ptr  = raw_data(glb_mesh_data.normal_buffer_bytes),
-                size = uint(len(glb_mesh_data.normal_buffer_bytes)),
+                ptr  = raw_data(m.render_mesh.normal_buffer_bytes),
+                size = uint(len(m.render_mesh.normal_buffer_bytes)),
             },
             label = "normal-buffer", // Optional: for debugging
         })
@@ -116,11 +124,11 @@ init :: proc "c" () {
     }
 
     // Create and bind UV buffer if data was loaded
-    if len(glb_mesh_data.uv_buffer_bytes) > 0 {
+    if len(m.render_mesh.uv_buffer_bytes) > 0 {
         state.bind.vertex_buffers[2] = sg.make_buffer({
             data = {
-                ptr  = raw_data(glb_mesh_data.uv_buffer_bytes),
-                size = uint(len(glb_mesh_data.uv_buffer_bytes)),
+                ptr  = raw_data(m.render_mesh.uv_buffer_bytes),
+                size = uint(len(m.render_mesh.uv_buffer_bytes)),
             },
             label = "uv-buffer", // Optional: for debugging
         })
@@ -128,12 +136,12 @@ init :: proc "c" () {
         fmt.println("UV buffer is empty or not loaded. Skipping GPU buffer creation for UVs.")
     }
 
-    if len(glb_mesh_data.index_buffer_bytes) > 0 {
+    if len(m.render_mesh.index_buffer_bytes) > 0 {
         state.bind.index_buffer = sg.make_buffer({
             type = .INDEXBUFFER,
             data = {
-                ptr = raw_data(glb_mesh_data.index_buffer_bytes),
-                size = uint(len(glb_mesh_data.index_buffer_bytes)),
+                ptr = raw_data(m.render_mesh.index_buffer_bytes),
+                size = uint(len(m.render_mesh.index_buffer_bytes)),
             },
         })
     } else {
@@ -166,45 +174,60 @@ init :: proc "c" () {
     })
 
     state.tint_params.tint = [4]f32{ 1.0, 1.0, 1.0, 1.0 }
+    
+    state.index = len(draw_calls)
 
-    state.pass_action = {
-        colors = {
-            0 = {load_action = .CLEAR, clear_value = {.4,.6,1,1}},
-        },
-    }
+    append(&draw_calls, state)
 }
 
 frame :: proc "c" () {
     context = runtime.default_context()
 
     dt := f32(sapp.frame_duration())
-    state.rx += 60 * dt
-    state.ry += 120 * dt
 
-    vs_params := Vs_Params {
-        mvp = compute_mvp_matrix(state.rx, state.ry),
+    clear_pass :sg.Pass_Action = {
+        colors = {
+            0 = {load_action = .CLEAR, clear_value = {.4,.6,1,1}},
+        },
     }
 
     sg.begin_pass({
-        action    = state.pass_action,
+        action    = clear_pass, // only clear once, from first draw call
         swapchain = sglue.swapchain(),
     })
-    sg.apply_pipeline(state.pipeline)
-    sg.apply_bindings(state.bind)
-    sg.apply_uniforms(
-    ub_slot = UB_Tint,
-    data    = { ptr = &state.tint_params, size = size_of(state.tint_params) },
-    )
-    sg.apply_uniforms(
-    ub_slot = UB_vs_params,
-    data = {
-        ptr = &vs_params,
-        size = size_of(vs_params),
-    },
-    )
-    sg.draw(0, i32(state.index_count), 1)
+    
+    vs_params := Vs_Params {
+        mvp = compute_mvp_matrix(0, 0),
+    }
+    
+    for i in 0..<len(draw_calls) {
+        
+        if draw_calls[i].skip_render {
+            continue
+        }
+
+        sg.apply_pipeline(draw_calls[i].pipeline)
+        sg.apply_bindings(draw_calls[i].bind)
+    
+        sg.apply_uniforms(
+            ub_slot = UB_Tint,
+            data = { ptr = &draw_calls[i].tint_params, size = size_of(draw_calls[i].tint_params) },
+        )
+    
+        sg.apply_uniforms(
+            ub_slot = UB_vs_params,
+            data = {
+                ptr = &vs_params,
+                size = size_of(vs_params),
+            },
+        )
+    
+        sg.draw(0, i32(draw_calls[i].index_count), 1)
+    }
+    
     sg.end_pass()
     sg.commit()
+    
 }
 
 cleanup :: proc "c" () {
