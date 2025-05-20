@@ -4,8 +4,8 @@ import "base:runtime"
 
 import "core:os"
 import "core:log"
-import "core:image/png"
-import "core:slice"
+//import "core:image/png"
+//import "core:slice"
 import "core:math/linalg"
 
 import "core:fmt"
@@ -42,7 +42,6 @@ state: struct {
 
 Tint_Params :: struct { tint : [4]f32 }
 
-
 init :: proc "c" () {
     context = runtime.default_context()
 
@@ -58,17 +57,44 @@ init :: proc "c" () {
         logger      = { func = slog.func },
     })
 
-    glb_data := render.load_glb_from_file("assets/test.glb")
-    loaded_mesh_data := render.load_mesh_from_data(glb_data)
+    glb_data      := render.load_glb_data_from_file("assets/test.glb")
+    glb_mesh_data := render.load_mesh_from_glb_data(glb_data)
+    glb_texture   := render.load_texture_from_glb_data(glb_data)
+
+    flask_mesh_renderer := render.mesh_renderer {
+    	render_materials = {
+    		0 = {
+    			tint_color     = {1,1,1,1},
+    			albedo_texture = glb_texture,
+    		}
+    	},
+    	render_mesh = glb_mesh_data,
+    	render_transfrom = {
+    		position = {0,0,0},
+    		rotation = {0,0,0},
+    		scale    = {1,1,1},
+    	}
+    }
+
 	defer glTF2.unload(glb_data)
 
-    state.index_count = loaded_mesh_data.index_count
 
-    if len(loaded_mesh_data.vertex_buffer_bytes) > 0 {
+    state.index_count = glb_mesh_data.index_count
+
+    state.bind.images[IMG_tex] = sg.make_image({
+        width  = i32(glb_texture.width),
+        height = i32(glb_texture.height),
+        data = { subimage = { 0 = { 0 = {
+            ptr  = glb_texture.final_pixels_ptr,
+            size = glb_texture.final_pixels_size,
+        }}}},
+    })
+
+    if len(glb_mesh_data.vertex_buffer_bytes) > 0 {
         state.bind.vertex_buffers[0] = sg.make_buffer({
             data = {
-                ptr  = raw_data(loaded_mesh_data.vertex_buffer_bytes),
-                size = uint(len(loaded_mesh_data.vertex_buffer_bytes)),
+                ptr  = raw_data(glb_mesh_data.vertex_buffer_bytes),
+                size = uint(len(glb_mesh_data.vertex_buffer_bytes)),
             },
         })
     } else {
@@ -76,11 +102,11 @@ init :: proc "c" () {
     }
 
     // Create and bind normal buffer if data was loaded
-    if len(loaded_mesh_data.normal_buffer_bytes) > 0 {
+    if len(glb_mesh_data.normal_buffer_bytes) > 0 {
         state.bind.vertex_buffers[1] = sg.make_buffer({
             data = {
-                ptr  = raw_data(loaded_mesh_data.normal_buffer_bytes),
-                size = uint(len(loaded_mesh_data.normal_buffer_bytes)),
+                ptr  = raw_data(glb_mesh_data.normal_buffer_bytes),
+                size = uint(len(glb_mesh_data.normal_buffer_bytes)),
             },
             label = "normal-buffer", // Optional: for debugging
         })
@@ -90,11 +116,11 @@ init :: proc "c" () {
     }
 
     // Create and bind UV buffer if data was loaded
-    if len(loaded_mesh_data.uv_buffer_bytes) > 0 {
+    if len(glb_mesh_data.uv_buffer_bytes) > 0 {
         state.bind.vertex_buffers[2] = sg.make_buffer({
             data = {
-                ptr  = raw_data(loaded_mesh_data.uv_buffer_bytes),
-                size = uint(len(loaded_mesh_data.uv_buffer_bytes)),
+                ptr  = raw_data(glb_mesh_data.uv_buffer_bytes),
+                size = uint(len(glb_mesh_data.uv_buffer_bytes)),
             },
             label = "uv-buffer", // Optional: for debugging
         })
@@ -102,55 +128,16 @@ init :: proc "c" () {
         fmt.println("UV buffer is empty or not loaded. Skipping GPU buffer creation for UVs.")
     }
 
-    if len(loaded_mesh_data.index_buffer_bytes) > 0 {
+    if len(glb_mesh_data.index_buffer_bytes) > 0 {
         state.bind.index_buffer = sg.make_buffer({
             type = .INDEXBUFFER,
             data = {
-                ptr = raw_data(loaded_mesh_data.index_buffer_bytes),
-                size = uint(len(loaded_mesh_data.index_buffer_bytes)),
+                ptr = raw_data(glb_mesh_data.index_buffer_bytes),
+                size = uint(len(glb_mesh_data.index_buffer_bytes)),
             },
         })
     } else {
         log.error("Index buffer is empty. Cannot create GPU buffer.")
-    }
-
-    {
-        mat   := glb_data.materials[0]
-        pbr   :  glTF2.Material_Metallic_Roughness = mat.metallic_roughness.?
-        tex_i := int(pbr.base_color_texture.?.index)
-        bytes := get_image_bytes(glb_data, tex_i)
-
-        img, err := png.load_from_bytes(bytes, allocator = context.temp_allocator)
-        assert(err == nil, "texture decode failed")
-
-        pixels := img.pixels.buf[:]
-        byte_len := slice.size(pixels)
-        bytes_per_pixel := byte_len / (img.width * img.height)
-
-        final_pixels_ptr := raw_data(pixels)
-        final_pixels_size := uint(byte_len)
-
-        if bytes_per_pixel == 3 {
-            converted_pixels_slice := rgb_to_rgba(pixels, img.width, img.height, context.temp_allocator)
-            final_pixels_ptr = raw_data(converted_pixels_slice)
-            final_pixels_size = uint(len(converted_pixels_slice))
-        // TODO: Consider deleting original 'pixels' if it was allocated by png.load_from_bytes and not a direct view,
-        // and if converted_pixels_slice is now the definitive source.
-        // However, since 'pixels' is a slice of img.pixels.buf, it's likely managed by the 'img' lifetime.
-        } else if bytes_per_pixel != 4 {
-            log.errorf("Unsupported PNG pixel format: %v bytes per pixel (expected 3 or 4)", bytes_per_pixel)
-            // Fallback or skip texture creation
-            return // Or handle error appropriately
-        }
-
-        state.bind.images[IMG_tex] = sg.make_image({
-            width  = i32(img.width),
-            height = i32(img.height),
-            data = { subimage = { 0 = { 0 = {
-                ptr  = final_pixels_ptr,
-                size = final_pixels_size,
-            }}}},
-        })
     }
 
     state.bind.samplers[SMP_smp] = sg.make_sampler({
@@ -244,34 +231,6 @@ main :: proc() {
         high_dpi     = true,
         html5_update_document_title = true,
     })
-}
-
-get_image_bytes :: proc (d: ^glTF2.Data, tex_idx: int) -> []byte {
-    tex := d.textures[tex_idx]
-    img := d.images[tex.source.?]
-
-    if img.buffer_view != nil {
-        view  := d.buffer_views[img.buffer_view.?]
-        buf   := d.buffers[view.buffer].uri.([]byte)
-        start := int(view.byte_offset)
-        return buf[start : start + int(view.byte_length)]
-    }
-
-    return img.uri.([]byte)
-}
-
-rgb_to_rgba :: proc(input_pixels: []u8, width: int, height: int, allocator: runtime.Allocator) -> []u8 {
-    pixel_count := width * height
-    local_output_pixels := make([]u8, pixel_count * 4, allocator)
-    for i in 0..<pixel_count {
-        src_idx := i * 3
-        dst_idx := i * 4
-        local_output_pixels[dst_idx+0] = input_pixels[src_idx+0]
-        local_output_pixels[dst_idx+1] = input_pixels[src_idx+1]
-        local_output_pixels[dst_idx+2] = input_pixels[src_idx+2]
-        local_output_pixels[dst_idx+3] = 255 // Opaque alpha
-    }
-    return local_output_pixels
 }
 
 compute_mvp_matrix :: proc (rx, ry: f32) -> Mat4 {

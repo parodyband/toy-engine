@@ -1,10 +1,20 @@
 package render
 
-import "../../glTF2"
+import "base:runtime"
+
+//import "core:os"
+import "core:log"
+import "core:image/png"
+import "core:slice"
+//import "core:math/linalg"
 
 import "core:fmt"
 
-load_mesh_from_data :: proc(glb_data : ^glTF2.Data) -> mesh {
+import "../../glTF2"
+
+// Loading
+
+load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> mesh {
 
 	loaded_mesh_data : mesh
 
@@ -106,11 +116,41 @@ load_mesh_from_data :: proc(glb_data : ^glTF2.Data) -> mesh {
 	return loaded_mesh_data
 }
 
-//load_texture_from_data :: proc(path : string) -> texture {
-//
-//}
+load_texture_from_glb_data :: proc(glb_data : ^glTF2.Data) -> texture {  
+    mat   := glb_data.materials[0]
+    pbr   :  glTF2.Material_Metallic_Roughness = mat.metallic_roughness.?
+    tex_i := int(pbr.base_color_texture.?.index)
+    bytes := get_image_bytes(glb_data, tex_i)
 
-load_glb_from_file :: proc(path : string) -> ^glTF2.Data {
+    img, err := png.load_from_bytes(data = bytes, allocator = context.temp_allocator)
+    assert(err == nil, "texture decode failed")
+
+    pixels := img.pixels.buf[:]
+    byte_len := slice.size(pixels)
+    bytes_per_pixel := byte_len / (img.width * img.height)
+
+    final_pixels_ptr := raw_data(pixels)
+    final_pixels_size := uint(byte_len)
+
+    if bytes_per_pixel == 3 {
+        converted_pixels_slice := rgb_to_rgba(pixels, img.width, img.height, context.temp_allocator)
+        final_pixels_ptr = raw_data(converted_pixels_slice)
+        final_pixels_size = uint(len(converted_pixels_slice))
+    } else if bytes_per_pixel != 4 {
+        log.errorf("Unsupported PNG pixel format: %v bytes per pixel (expected 3 or 4)", bytes_per_pixel)
+        return texture{} // Return empty texture on error
+    }
+
+    return texture{
+        width = i32(img.width),
+        height = i32(img.height),
+        data = final_pixels_ptr[:final_pixels_size],
+        final_pixels_ptr = final_pixels_ptr,
+        final_pixels_size = final_pixels_size,
+    }
+}
+
+load_glb_data_from_file :: proc(path : string) -> ^glTF2.Data {
 	glb_data, error := glTF2.load_from_file(path)
 
 	switch err_val in error {
@@ -124,4 +164,32 @@ load_glb_from_file :: proc(path : string) -> ^glTF2.Data {
 		fmt.printfln("Mesh found! Name: %s", mesh.name)
 	}
 	return glb_data
+}
+
+get_image_bytes :: proc (d: ^glTF2.Data, tex_idx: int) -> []byte {
+    tex := d.textures[tex_idx]
+    img := d.images[tex.source.?]
+
+    if img.buffer_view != nil {
+        view  := d.buffer_views[img.buffer_view.?]
+        buf   := d.buffers[view.buffer].uri.([]byte)
+        start := int(view.byte_offset)
+        return buf[start : start + int(view.byte_length)]
+    }
+
+    return img.uri.([]byte)
+}
+
+rgb_to_rgba :: proc(input_pixels: []u8, width: int, height: int, allocator: runtime.Allocator) -> []u8 {
+    pixel_count := width * height
+    local_output_pixels := make([]u8, pixel_count * 4, allocator)
+    for i in 0..<pixel_count {
+        src_idx := i * 3
+        dst_idx := i * 4
+        local_output_pixels[dst_idx+0] = input_pixels[src_idx+0]
+        local_output_pixels[dst_idx+1] = input_pixels[src_idx+1]
+        local_output_pixels[dst_idx+2] = input_pixels[src_idx+2]
+        local_output_pixels[dst_idx+3] = 255 // Opaque alpha
+    }
+    return local_output_pixels
 }
