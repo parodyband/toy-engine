@@ -10,7 +10,7 @@
 mesh_renderer :: struct {
     render_mesh      : mesh,
     render_materials : []material,
-    render_transfrom : transform,
+    render_transform : transform,
 }
 
 mesh :: struct {

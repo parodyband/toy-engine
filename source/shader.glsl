@@ -5,20 +5,23 @@
 @vs vs
 in vec4 position;
 in vec4 normal;
-// in vec4 color0;
 in vec2 texcoord0;
 
-layout(binding=0) uniform vs_params {
-    mat4 mvp;
+// Use an explicit std140 uniform block to avoid default-uniform collisions
+layout(std140, binding=0) uniform VSParams {
+    mat4 mvp;   // view-projection matrix
+    mat4 model; // per-mesh model matrix
 };
 
-out vec3 v_normal; // Output normal to fragment shader
-// out vec4 v_color_0;
+out vec3 v_normal;
 out vec2 uv;
 
 void main() {
-    gl_Position = mvp * position;
-    v_normal    = normalize(mat3(mvp) * normal.xyz); // Transform normal (assuming mvp is model-view-projection, this is a common way, though not always perfect for normals)
+    // First transform vertex position by the model matrix (world transform), then by view-projection
+    gl_Position = mvp * model * position;
+
+    // Transform normal by the model matrix only (no translation)
+    v_normal    = normalize(mat3(model) * normal.xyz);
     // v_color_0   = color0;
     uv          = texcoord0;
 }
@@ -26,7 +29,6 @@ void main() {
 
 @fs fs
 in vec3 v_normal; // Input normal from vertex shader
-// in vec4 v_color_0;
 in vec2 uv;
 
 out vec4 frag_color;
@@ -34,7 +36,8 @@ out vec4 frag_color;
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler   smp;
 
-layout(binding=1) uniform Tint {
+// Tint colour in a dedicated std140 block, bound at slot 1 (fragment stage)
+layout(std140, binding=1) uniform TintBlock {
     vec4 tint;
 };
 
@@ -45,11 +48,7 @@ void main(){
     vec3 diffuse = diff * vec3(1.0); // White light
 
     vec4 texColor = texture(sampler2D(tex,smp),uv); // Still using the texture lookup
-    frag_color = vec4(diffuse, 1.0) * tint * texColor; 
-
-    // vec3 baseColor = tint.rgb; // These lines were overwriting the textured result
-    // vec3 lightedColor = baseColor * diffuse; // Keeping them commented out
-    // frag_color = vec4(diffuse, 1.0) * tint; // This was the line that hid the texture
+    frag_color = vec4(diffuse, 1.0) * texColor + tint; 
 
 }
 @end

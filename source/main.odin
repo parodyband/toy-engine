@@ -9,6 +9,7 @@ import "core:log"
 import "core:math/linalg"
 
 import "core:fmt"
+import "core:math"
 
 import "glTF2"
 
@@ -34,14 +35,12 @@ draw_call :: struct {
     index      : int,
     pipeline   : sg.Pipeline,
     bind       : sg.Bindings,
-    tint_params: Tint_Params,
     index_count: int,
     skip_render: bool,
+    renderer : render.mesh_renderer,
 }
 
 draw_calls : [dynamic]draw_call
-
-Tint_Params :: struct { tint : [4]f32 }
 
 init :: proc "c" () {
     context = runtime.default_context()
@@ -65,12 +64,12 @@ init :: proc "c" () {
     flask_mesh_renderer := render.mesh_renderer {
         render_materials = {
             0 = {
-                tint_color     = {1,1,1,1},
+                tint_color     = {1.0,1.0,1.0,1.0},
                 albedo_texture = glb_texture,
             }
         },
         render_mesh = glb_mesh_data,
-        render_transfrom = {
+        render_transform = {
             position = {0,0,0},
             rotation = {0,0,0},
             scale    = {1,1,1},
@@ -173,17 +172,29 @@ add_draw_call :: proc(m : render.mesh_renderer) {
         },
     })
 
-    state.tint_params.tint = [4]f32{ 1.0, 1.0, 1.0, 1.0 }
     
     state.index = len(draw_calls)
 
+    state.renderer = m
+
     append(&draw_calls, state)
+}
+
+update :: proc(time : f32, deltaTime : f32){
+    if len(draw_calls) > 0 {
+        draw_calls[0].renderer.render_transform.position.y = -10 + math.abs((1.0 * math.sin(time * 0.03))) * 4
+		draw_calls[0].renderer.render_transform.rotation.y += deltaTime * 50
+		draw_calls[0].renderer.render_transform.scale.y = math.abs(1.0 * math.sin(time * 0.03)) * .5 + .5
+    }
 }
 
 frame :: proc "c" () {
     context = runtime.default_context()
 
+	t  := f32(sapp.frame_count())
     dt := f32(sapp.frame_duration())
+
+	update(t, dt)
 
     clear_pass :sg.Pass_Action = {
         colors = {
@@ -196,10 +207,8 @@ frame :: proc "c" () {
         swapchain = sglue.swapchain(),
     })
     
-    vs_params := Vs_Params {
-        mvp = compute_mvp_matrix(0, 0),
-    }
-    
+    vp_matrix := compute_mvp_matrix()
+
     for i in 0..<len(draw_calls) {
         
         if draw_calls[i].skip_render {
@@ -209,16 +218,31 @@ frame :: proc "c" () {
         sg.apply_pipeline(draw_calls[i].pipeline)
         sg.apply_bindings(draw_calls[i].bind)
     
+        // Build per-draw-call uniform params including model matrix
+        vs_params : Vsparams
+        vs_params.mvp   = vp_matrix
+        vs_params.model = compute_model_matrix(draw_calls[i].renderer.render_transform)
+
+        // Create a 16-byte aligned temporary for the tint color uniform data
+        // The Tint struct is defined in shader.odin and is #align(16)
+        aligned_tint_uniform: Tintblock
+        aligned_tint_uniform.tint = draw_calls[i].renderer.render_materials[0].tint_color
+
+        // Apply vertex shader uniforms first
         sg.apply_uniforms(
-            ub_slot = UB_Tint,
-            data = { ptr = &draw_calls[i].tint_params, size = size_of(draw_calls[i].tint_params) },
-        )
-    
-        sg.apply_uniforms(
-            ub_slot = UB_vs_params,
+            ub_slot = UB_VSParams, // Slot 0, for vertex shader
             data = {
                 ptr = &vs_params,
                 size = size_of(vs_params),
+            },
+        )
+
+        // Then apply fragment shader tint uniform so it ends up last in the ring-buffer for this draw call
+        sg.apply_uniforms(
+            ub_slot = UB_TintBlock, // Slot 1, for fragment shader
+            data = {
+                ptr = &aligned_tint_uniform,
+                size = size_of(Tintblock),
             },
         )
     
@@ -256,14 +280,29 @@ main :: proc() {
     })
 }
 
-compute_mvp_matrix :: proc (rx, ry: f32) -> Mat4 {
+compute_mvp_matrix :: proc () -> Mat4 {
     proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 100.0)
-    view := linalg.matrix4_look_at_f32({0.0, -1.5, -25.0}, {}, {0.0, 1.0, 0.0})
-    view_proj := proj * view
-    rxm := linalg.matrix4_rotate_f32(rx * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
-    rym := linalg.matrix4_rotate_f32(ry * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
-    model := rxm * rym
-    return view_proj * model
+    view := linalg.matrix4_look_at_f32({0.0, 10, -25.0}, {}, {0.0, 1.0, 0.0})
+    // Previously this function returned view_proj * model, but the model transformation is now supplied per-mesh.
+    // We keep the signature intact, but ignore rx/ry and just compute view-projection matrix.
+    return proj * view
+}
+
+// Compute a model matrix from a render.transform (position, rotation (deg), scale)
+compute_model_matrix :: proc(t: render.transform) -> Mat4 {
+    // Translation
+    trans := linalg.matrix4_translate_f32({t.position[0], t.position[1], t.position[2]})
+
+    // Rotation matrices (convert degrees to radians)
+    rot_x := linalg.matrix4_rotate_f32(t.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+    rot_y := linalg.matrix4_rotate_f32(t.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+    rot_z := linalg.matrix4_rotate_f32(t.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+
+    // Scale matrix
+    scale := linalg.matrix4_scale_f32({t.scale[0], t.scale[1], t.scale[2]})
+
+    // Combine: T * Rz * Ry * Rx * S (typical order)
+    return trans * rot_z * rot_y * rot_x * scale
 }
 
 @(require_results)
