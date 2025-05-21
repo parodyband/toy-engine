@@ -141,6 +141,54 @@ init :: proc "c" () {
         add_draw_call(floor_mesh_renderer, context.allocator)
         defer glTF2.unload(glb_data)
     }
+
+    {
+        glb_data      := render.load_glb_data_from_file("assets/sphere.glb")
+        glb_mesh_data := render.load_mesh_from_glb_data(glb_data)
+        glb_texture   := render.load_texture_from_glb_data(glb_data)
+
+        floor_mesh_renderer := render.mesh_renderer {
+            render_materials = []render.material{
+                { // Element 0
+                    tint_color     = {1.0,1.0,1.0,1.0},
+                    albedo_texture = glb_texture,
+                },
+            },
+            render_mesh = glb_mesh_data,
+            render_transform = {
+                position = {0,0,0},
+                rotation = {0,0,0},
+                scale    = {1,1,1},
+            }
+        }
+
+        add_draw_call(floor_mesh_renderer, context.allocator)
+        defer glTF2.unload(glb_data)
+    }
+
+    {
+        glb_data      := render.load_glb_data_from_file("assets/monkey.glb")
+        glb_mesh_data := render.load_mesh_from_glb_data(glb_data)
+        glb_texture   := render.load_texture_from_glb_data(glb_data)
+
+        floor_mesh_renderer := render.mesh_renderer {
+            render_materials = []render.material{
+                { // Element 0
+                    tint_color     = {1.0,1.0,1.0,1.0},
+                    albedo_texture = glb_texture,
+                },
+            },
+            render_mesh = glb_mesh_data,
+            render_transform = {
+                position = {0,0,0},
+                rotation = {0,0,0},
+                scale    = {1,1,1},
+            }
+        }
+
+        add_draw_call(floor_mesh_renderer, context.allocator)
+        defer glTF2.unload(glb_data)
+    }
 }
 
 add_draw_call :: proc(m : render.mesh_renderer, allocator: runtime.Allocator) {
@@ -287,7 +335,6 @@ event :: proc "c" (event: ^sapp.Event) {
 }
 
 update :: proc(time: f32, deltaTime: f32) {
-    // --- Camera movement with tracked input state ---
     move_speed: f32 = 30.0
     rot_speed:  f32 = 0.3
 
@@ -297,34 +344,33 @@ update :: proc(time: f32, deltaTime: f32) {
     if game_input.mouse_locked {
         mainCamera.rotation.y += mouse_dx * rot_speed
         mainCamera.rotation.x += mouse_dy * rot_speed
-        // Clamp pitch to avoid flipping
+        // x look clamp
         mainCamera.rotation.x = glsl.clamp(mainCamera.rotation.x, -89.0, 89.0)
     }
-    // Reset mouse delta after using it
+
     game_input.mouse_delta = {0, 0, 0}
 
-    // WASD movement
+    // for WASD
     pitch_rad := glsl.radians(mainCamera.rotation.x)
-    yaw_rad := glsl.radians(mainCamera.rotation.y)
+    yaw_rad   := glsl.radians(mainCamera.rotation.y)
 
-    // Calculate forward vector (camera forward) based on yaw (Y) and pitch (X)
+    // forward vector (camera forward) based on yaw (Y) and pitch (X)
     forward: Vec3 = {
         glsl.sin(yaw_rad) * glsl.cos(pitch_rad),
         -glsl.sin(pitch_rad),
         glsl.cos(yaw_rad) * glsl.cos(pitch_rad)
     }
 
-    // Calculate right vector (camera right) perpendicular to forward and world up
+    // right vector (camera right) perpendicular to forward and world up
     right: Vec3 = {
         glsl.cos(yaw_rad),
         0,
         -glsl.sin(yaw_rad)
     }
 
-    // World up vector
     up: Vec3 = {0, 1, 0}
-
     move: Vec3 = {0, 0, 0}
+
     if game_input.keys_down[.W] {
         move += forward
     }
@@ -344,13 +390,17 @@ update :: proc(time: f32, deltaTime: f32) {
         move -= up
     }
 
+    // if game_input.keys_down[.ESCAPE] {
+    //     game_input.mouse_locked = false
+    //     sapp.show_mouse(true)
+    // }
+
     // Normalize move vector if moving diagonally
     if glsl.length(move) > 0.001 {
         move = glsl.normalize(move)
         mainCamera.position += move * move_speed * deltaTime
     }
 
-    // Example: Animate first draw_call's rotation for demo
     if len(draw_calls) > 0 {
         draw_calls[0].renderer.render_transform.rotation.y += deltaTime * 50
         //draw_calls[0].renderer.render_transform.position.y = math.abs(math.sin(time * 0.05))
@@ -447,8 +497,8 @@ main :: proc() {
         frame_cb     = frame,
         cleanup_cb   = cleanup,
         event_cb     = event,
-        width        = 700,
-        height       = 700,
+        width        = 1280,
+        height       = 720,
         window_title = "Window",
         icon         = { sokol_default = true },
         logger       = { func = slog.func },
@@ -458,7 +508,7 @@ main :: proc() {
 }
 
 compute_camera_view_projection_matrix :: proc (position : [3]f32, rotation : [3]f32) -> Mat4 {
-    proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 100.0)
+    proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 1000.0)
     
     // Create INVERSE rotation matrices for camera orientation
     // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
