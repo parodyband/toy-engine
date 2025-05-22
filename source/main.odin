@@ -165,7 +165,7 @@ init :: proc "c" () {
             },
             render_mesh = glb_mesh_data,
             render_transform = {
-                position = {0,0,0},
+                position = {-10,0,-10},
                 rotation = {0,0,0},
                 scale    = {1,1,1},
             }
@@ -262,6 +262,53 @@ init :: proc "c" () {
             render_mesh = glb_mesh_data,
             render_transform = {
                 position = {0,0,0},
+                rotation = {0,0,0},
+                scale    = {1,1,1},
+            }
+        }
+
+        add_draw_call(floor_mesh_renderer, context.allocator)
+        defer glTF2.unload(glb_data)
+    }
+
+    {
+        glb_data      := render.load_glb_data_from_file("assets/1x1 cube.glb")
+        glb_mesh_data := render.load_mesh_from_glb_data(glb_data)
+        glb_texture   := render.load_texture_from_glb_data(glb_data)
+
+        floor_mesh_renderer := render.mesh_renderer {
+            render_materials = []render.material{
+                { // Element 0
+                    tint_color     = {1.0,1.0,1.0,1.0},
+                    albedo_texture = glb_texture,
+                },
+            },
+            render_mesh = glb_mesh_data,
+            render_transform = {
+                position = {0,0,0},
+                rotation = {0,0,0},
+                scale    = {1,1,1},
+            }
+        }
+
+        add_draw_call(floor_mesh_renderer, context.allocator)
+        defer glTF2.unload(glb_data)
+    }
+    {
+        glb_data      := render.load_glb_data_from_file("assets/1x1 cube.glb")
+        glb_mesh_data := render.load_mesh_from_glb_data(glb_data)
+        glb_texture   := render.load_texture_from_glb_data(glb_data)
+
+        floor_mesh_renderer := render.mesh_renderer {
+            render_materials = []render.material{
+                { // Element 0
+                    tint_color     = {1.0,1.0,1.0,1.0},
+                    albedo_texture = glb_texture,
+                },
+            },
+            render_mesh = glb_mesh_data,
+            render_transform = {
+                position = {1,0,1},
                 rotation = {0,0,0},
                 scale    = {1,1,1},
             }
@@ -562,7 +609,7 @@ frame :: proc "c" () {
     }
 
     // Choose a slice up to 100 units from the camera
-    cascade_range : f32 = 75.0
+    cascade_range : f32 = 30.0
     slice_center  : Vec3 = mainCamera.position + (cam_forward * (cascade_range * 0.5))
 
     // Place the light eye so that it looks toward the slice center
@@ -739,7 +786,8 @@ compute_camera_view_projection_matrix :: proc (position : [3]f32, rotation : [3]
 
 // (position, rotation (deg), scale)
 compute_model_matrix :: proc(t: render.transform) -> Mat4 {
-    trans := linalg.matrix4_translate_f32({t.position[0], t.position[1], t.position[2]})
+    position := t.position * 2
+    trans := linalg.matrix4_translate_f32({position[0], position[1], position[2]})
 
     // Rotation matrices (convert degrees to radians)
     // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
