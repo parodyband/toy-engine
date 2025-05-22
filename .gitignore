@@ -14,5 +14,5 @@ build/
 !source/sokol/*/*wasm*.a
 
 # Editor settings
-.vscode/
+
 ols.json

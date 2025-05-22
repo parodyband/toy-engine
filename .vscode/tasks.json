@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "toy_engine",
+      "type": "shell",
+      "command": "./build_game.exe",
+      "args": ["--run"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": {
+        "owner": "custom",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\s*(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "toy_engine_web",
+      "type": "shell",
+      "command": "./build_game.exe",
+      "args": ["--web", "--serve", "--port=8080"],
+      "group": "build",
+      "problemMatcher": {
+        "owner": "custom",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\s*(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    }
+  ]
+}
