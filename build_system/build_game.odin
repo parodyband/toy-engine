@@ -49,7 +49,7 @@ SETTINGS := CONFIG{
     
     executable_name   = "ToyGame",
     
-    shader_input      = "source/shader.glsl",
+    shader_input      = "source/shaders/shader.glsl",
     shader_output     = "source/shader.odin",
     shader_formats    = "glsl300es:hlsl4:glsl430:metal_macos",
     

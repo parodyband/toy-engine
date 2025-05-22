@@ -50,7 +50,7 @@ shadow_map        : sg.Image
 shadow_depth_img  : sg.Image
 shadow_attachments: sg.Attachments
 shadow_clear_pass : sg.Pass_Action
-shadow_sampler   : sg.Sampler
+shadow_sampler    : sg.Sampler
 
 draw_calls : [dynamic]draw_call
 
@@ -89,7 +89,6 @@ game_input := input_state{
     mouse_buttons_down = make(map[sapp.Mousebutton]bool),
     mouse_locked = false,
 }
-
 
 
 init :: proc "c" () {
@@ -588,9 +587,11 @@ frame :: proc "c" () {
     light_view_proj := light_projection * light_view
 
     // Render depth
+    sg.push_debug_group("Directional Light Depth Pass")
     sg.begin_pass({
         action      = shadow_clear_pass,
         attachments = shadow_attachments,
+        label = "Directional Light Depth Pass"
     })
 
     for i in 0..<len(draw_calls) {
@@ -615,6 +616,7 @@ frame :: proc "c" () {
         sg.draw(0, i32(draw_calls[i].index_count), 1)
     }
     sg.end_pass()
+    sg.pop_debug_group()
 
 
     // Opaque

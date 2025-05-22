@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "toy_engine",
+      "label": "Build and Run Toyengine",
       "type": "shell",
       "command": "./build_game.exe",
       "args": ["--run"],
@@ -26,7 +26,33 @@
       }
     },
     {
-      "label": "toy_engine_web",
+      "label": "Build Toyengine",
+      "type": "shell",
+      "command": "./build_game.exe",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": {
+        "owner": "custom",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\s*(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "statusbar": {
+          "hide": true
+        }
+      }
+    },
+    {
+      "label": "Build and Run Toyengine for Web",
       "type": "shell",
       "command": "./build_game.exe",
       "args": ["--web", "--serve", "--port=8080"],
@@ -45,6 +71,38 @@
       "options": {
         "cwd": "${workspaceFolder}"
       }
-    }
+    },
+    {
+      "label": "Refresh Build System",
+      "type": "shell",
+      "command": "odin",
+      "args": ["build", "build_system/build_game.odin", "-file"],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "Build & Capture ToyGame",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", "${workspaceFolder}\\build_system\\build_and_capture.ps1",
+        "-WorkspaceRoot", "${workspaceFolder}"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
   ]
 }

@@ -12,6 +12,7 @@ build/
 *.exp
 !sokol-shdc/**
 !source/sokol/*/*wasm*.a
+captures/
 
 # Editor settings
 
