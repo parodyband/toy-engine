@@ -75,5 +75,24 @@
     "**/*.sublime-workspace": true,
     "**/*ols.json": true,
     "**/*.gitignore": true
-  }
+  },
+  "cSpell.words": [
+    "emscripten",
+    "glsl",
+    "heightf",
+    "linalg",
+    "Mainlightparams",
+    "Mousebutton",
+    "println",
+    "RGBA",
+    "sapp",
+    "sglue",
+    "sokol",
+    "subimage",
+    "swapchain",
+    "Tintblock",
+    "Vsparams",
+    "WASD",
+    "widthf"
+  ]
 }
