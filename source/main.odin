@@ -786,7 +786,7 @@ compute_camera_view_projection_matrix :: proc (position : [3]f32, rotation : [3]
 
 // (position, rotation (deg), scale)
 compute_model_matrix :: proc(t: render.transform) -> Mat4 {
-    position := t.position * 2
+    position := t.position
     trans := linalg.matrix4_translate_f32({position[0], position[1], position[2]})
 
     // Rotation matrices (convert degrees to radians)
