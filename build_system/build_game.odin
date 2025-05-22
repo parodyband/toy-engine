@@ -36,10 +36,10 @@ CONFIG :: struct {
 
 when ODIN_OS == .Windows {
     DEFAULT_EMSCRIPTEN_DIR :: "c:/emsdk"
-    DEFAULT_EMSCRIPTEN_FLAGS :: "-sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS"
+    DEFAULT_EMSCRIPTEN_FLAGS :: "-sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432"
 } else {
     DEFAULT_EMSCRIPTEN_DIR :: "$HOME/emsdk"
-    DEFAULT_EMSCRIPTEN_FLAGS :: "-sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS -sALLOW_MEMORY_GROWTH=1"
+    DEFAULT_EMSCRIPTEN_FLAGS :: "-sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432"
 }
 
 SETTINGS := CONFIG{
@@ -326,13 +326,18 @@ build_web :: proc() -> bool {
     html_out := fmt.tprintf("%s/index.html", out_dir)
     
     // Prepare sokol library paths for linking
+    sokol_lib_suffix := "_release.a"
+    if SETTINGS.debug_build {
+        sokol_lib_suffix = "_debug.a"
+    }
+
     sokol_libs := []string{
-        fmt.tprintf("%s/sokol/app/sokol_app_wasm_gl_release.a", SETTINGS.source_dir),
-        fmt.tprintf("%s/sokol/glue/sokol_glue_wasm_gl_release.a", SETTINGS.source_dir),
-        fmt.tprintf("%s/sokol/gfx/sokol_gfx_wasm_gl_release.a", SETTINGS.source_dir),
-        fmt.tprintf("%s/sokol/shape/sokol_shape_wasm_gl_release.a", SETTINGS.source_dir),
-        fmt.tprintf("%s/sokol/log/sokol_log_wasm_gl_release.a", SETTINGS.source_dir),
-        fmt.tprintf("%s/sokol/gl/sokol_gl_wasm_gl_release.a", SETTINGS.source_dir),
+        fmt.tprintf("%s/lib/sokol/app/sokol_app_wasm_gl%s", SETTINGS.source_dir, sokol_lib_suffix),
+        fmt.tprintf("%s/lib/sokol/glue/sokol_glue_wasm_gl%s", SETTINGS.source_dir, sokol_lib_suffix),
+        fmt.tprintf("%s/lib/sokol/gfx/sokol_gfx_wasm_gl%s", SETTINGS.source_dir, sokol_lib_suffix),
+        fmt.tprintf("%s/lib/sokol/shape/sokol_shape_wasm_gl%s", SETTINGS.source_dir, sokol_lib_suffix),
+        fmt.tprintf("%s/lib/sokol/log/sokol_log_wasm_gl%s", SETTINGS.source_dir, sokol_lib_suffix),
+        fmt.tprintf("%s/lib/sokol/gl/sokol_gl_wasm_gl%s", SETTINGS.source_dir, sokol_lib_suffix),
     }
     
     when ODIN_OS == .Windows {
@@ -365,7 +370,7 @@ build_web :: proc() -> bool {
         append(&emcc_cmd, flag)
     }
     
-    shell_file := fmt.tprintf("%s/web/index_template.html", SETTINGS.source_dir)
+    shell_file := fmt.tprintf("%s/lib/web/index_template.html", SETTINGS.source_dir)
     when ODIN_OS == .Windows {
         shell_file, _ = strings.replace_all(shell_file, "/", "\\")
     }

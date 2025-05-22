@@ -2,17 +2,15 @@ package render
 
 import "base:runtime"
 
+//import "core:os"
 import "core:log"
 import "core:image/png"
-import "core:image"
 import "core:slice"
+//import "core:math/linalg"
 
 import "core:fmt"
 
 import "../../lib/glTF2"
-
-import file "../fileIO"
-import "../render"
 
 // Loading
 
@@ -122,7 +120,7 @@ load_texture_from_glb_data :: proc(glb_data : ^glTF2.Data) -> texture {
     mat   := glb_data.materials[0]
     pbr   :  glTF2.Material_Metallic_Roughness = mat.metallic_roughness.?
     tex_i := int(pbr.base_color_texture.?.index)
-    bytes := get_glb_image_bytes(glb_data, tex_i)
+    bytes := get_image_bytes(glb_data, tex_i)
 
     img, err := png.load_from_bytes(data = bytes, allocator = context.temp_allocator)
     assert(err == nil, "texture decode failed")
@@ -152,26 +150,8 @@ load_texture_from_glb_data :: proc(glb_data : ^glTF2.Data) -> texture {
     }
 }
 
-load_texture_from_png_file :: proc(file_path : string) -> texture {
+load_texture_from_file :: proc(path : string) -> texture {
 	
-	bytes, ok := file.read_entire_file(file_path)
-	assert(ok)
-
-	img, err := png.load_from_bytes(bytes)
-
-	if err != nil {
-		fmt.printfln("Error loading PNG file %v: %v", file_path, err)
-	}
-
-	defer image.destroy(img)
-
-	return render.texture {
-		width = i32(img.width),
-		height = i32(img.height),
-		data = bytes,
-		final_pixels_ptr = raw_data(img.pixels.buf),
-		final_pixels_size = uint(slice.size(img.pixels.buf[:])),
-	}
 }
 
 load_glb_data_from_file :: proc(path : string) -> ^glTF2.Data {
@@ -190,7 +170,7 @@ load_glb_data_from_file :: proc(path : string) -> ^glTF2.Data {
 	return glb_data
 }
 
-get_glb_image_bytes :: proc (d: ^glTF2.Data, tex_idx: int) -> []byte {
+get_image_bytes :: proc (d: ^glTF2.Data, tex_idx: int) -> []byte {
     tex := d.textures[tex_idx]
     img := d.images[tex.source.?]
 

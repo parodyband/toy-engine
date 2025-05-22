@@ -7,8 +7,11 @@
 	"settings": {
 		"cSpell.words": [
 			"emscripten",
+			"errorf",
 			"glsl",
+			"GLTF",
 			"linalg",
+			"printfln",
 			"RGBA",
 			"sapp",
 			"sglue",
