@@ -10,16 +10,15 @@ import "core:math/linalg/glsl"
 import "core:fmt"
 import "core:math"
 
-import "glTF2"
+import "lib/glTF2"
+import "lib/web"
 
-import slog  "sokol/log"
-import sapp  "sokol/app"
-import sg    "sokol/gfx"
-import sglue "sokol/glue"
+import slog  "lib/sokol/log"
+import sapp  "lib/sokol/app"
+import sg    "lib/sokol/gfx"
+import sglue "lib/sokol/glue"
 
 import "engine_core/render"
-
-import "web"
 
 _ :: web
 _ :: os

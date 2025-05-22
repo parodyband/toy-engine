@@ -1,5 +1,5 @@
 @header package main
-@header import sg "sokol/gfx"
+@header import sg "lib/sokol/gfx"
 
 @ctype mat4 Mat4
 @ctype mat3 Mat3

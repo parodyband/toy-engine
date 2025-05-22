@@ -10,7 +10,7 @@ import "core:slice"
 
 import "core:fmt"
 
-import "../../glTF2"
+import "../../lib/glTF2"
 
 // Loading
 
