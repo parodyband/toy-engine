@@ -15,7 +15,8 @@
 			"RGBA",
 			"sapp",
 			"sglue",
-			"sokol"
+			"sokol",
+			"texcube",
 		]
 	}
 }

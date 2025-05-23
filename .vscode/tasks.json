@@ -4,8 +4,8 @@
     {
       "label": "Build and Run Toyengine",
       "type": "shell",
-      "command": "./build_game.exe",
-      "args": ["--run"],
+      "command": "python",
+      "args": ["build.py", "-hot-reload", "-run"],
       "group": {
         "kind": "build",
         "isDefault": true
@@ -28,7 +28,8 @@
     {
       "label": "Build Toyengine",
       "type": "shell",
-      "command": "./build_game.exe",
+      "command": "python",
+      "args": ["build.py", "-hot-reload"],
       "group": {
         "kind": "build",
         "isDefault": false
@@ -54,8 +55,8 @@
     {
       "label": "Build and Run Toyengine for Web",
       "type": "shell",
-      "command": "./build_game.exe",
-      "args": ["--web", "--serve", "--port=8080"],
+      "command": "python",
+      "args": ["build.py", "-web", "-run", "-port", "8080", "-emsdk-path", "C:\\emsdk"],
       "group": "build",
       "problemMatcher": {
         "owner": "custom",
@@ -73,25 +74,96 @@
       }
     },
     {
-      "label": "Refresh Build System",
+      "label": "Build Release",
       "type": "shell",
-      "command": "odin",
-      "args": ["build", "build_system/build_game.odin", "-file"],
+      "command": "python",
+      "args": ["build.py", "-release"],
       "group": "build",
+      "problemMatcher": {
+        "owner": "custom",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\s*(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      },
       "options": {
         "cwd": "${workspaceFolder}"
       }
     },
     {
+      "label": "Build and Run Release",
+      "type": "shell",
+      "command": "python",
+      "args": ["build.py", "-release", "-run"],
+      "group": "build",
+      "problemMatcher": {
+        "owner": "custom",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\s*(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "Update Sokol",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -update-sokol && exit"],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "windows": {
+        "command": "cmd",
+        "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -update-sokol && exit"]
+      },
+      "linux": {
+        "command": "python",
+        "args": ["build.py", "-update-sokol"]
+      },
+      "osx": {
+        "command": "python",
+        "args": ["build.py", "-update-sokol"]
+      }
+    },
+    {
+      "label": "Compile Sokol",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -compile-sokol && exit"],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "windows": {
+        "command": "cmd",
+        "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -compile-sokol && exit"]
+      },
+      "linux": {
+        "command": "python",
+        "args": ["build.py", "-compile-sokol"]
+      },
+      "osx": {
+        "command": "python",
+        "args": ["build.py", "-compile-sokol"]
+      }
+    },
+    {
       "label": "Build & Capture ToyGame",
-      "type": "process",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", "${workspaceFolder}\\build_system\\build_and_capture.ps1",
-        "-WorkspaceRoot", "${workspaceFolder}"
-      ],
+      "type": "shell",
+      "command": "python",
+      "args": ["build.py", "-capture"],
       "group": {
         "kind": "build",
         "isDefault": false
@@ -102,7 +174,11 @@
         "focus": false,
         "panel": "shared"
       },
-      "problemMatcher": []
-    },
+      "problemMatcher": [],
+      "windows": {
+        "command": "python",
+        "args": ["build.py", "-capture"]
+      }
+    }
   ]
 }
