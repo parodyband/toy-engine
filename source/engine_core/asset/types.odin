@@ -7,13 +7,7 @@
 
 // high level
 
-mesh_renderer :: struct {
-    render_mesh      : mesh,
-    render_materials : []material,
-    render_transform : transform,
-}
-
-mesh :: struct {
+Mesh :: struct {
     index_buffer_bytes : []byte,
     vertex_buffer_bytes: []byte,
     normal_buffer_bytes: []byte,
@@ -25,27 +19,19 @@ mesh :: struct {
     // then something went wrong
 }
 
-material :: struct {
+Material :: struct {
     tint_color     : [4]f32,
-    albedo_texture : texture,
+    albedo_texture : Texture,
 }
 
-texture :: struct {
-    width  : i32,
-    height : i32,
+Texture :: struct {
+    dimensions : Texture_Dimensions,
     data   : []byte,
-
     final_pixels_ptr  : [^]byte,
     final_pixels_size : uint,
 }
 
-texture_dimensions :: struct {
+Texture_Dimensions :: struct {
     width  : i32,
     height : i32,
-}
-
-transform :: struct {
-    position : [3]f32,
-    rotation : [3]f32,
-    scale    : [3]f32,
 }

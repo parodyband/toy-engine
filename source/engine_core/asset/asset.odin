@@ -12,9 +12,10 @@ import "../../lib/glTF2"
 
 import file "../../lib/sokol_utils"
 
-load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> mesh {
 
-	loaded_mesh_data : mesh
+load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Mesh {
+
+	loaded_mesh_data : Mesh
 
 	primitive := glb_data.meshes[0].primitives[0]
 
@@ -114,7 +115,7 @@ load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> mesh {
 	return loaded_mesh_data
 }
 
-load_texture_from_glb_data :: proc(glb_data : ^glTF2.Data) -> texture {  
+load_texture_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Texture {  
     mat   := glb_data.materials[0]
     pbr   :  glTF2.Material_Metallic_Roughness = mat.metallic_roughness.?
     tex_i := int(pbr.base_color_texture.?.index)
@@ -136,19 +137,21 @@ load_texture_from_glb_data :: proc(glb_data : ^glTF2.Data) -> texture {
         final_pixels_size = uint(len(converted_pixels_slice))
     } else if bytes_per_pixel != 4 {
         log.errorf("Unsupported PNG pixel format: %v bytes per pixel (expected 3 or 4)", bytes_per_pixel)
-        return texture{} // Return empty texture on error
+        return Texture{} // Return empty texture on error
     }
 
-    return texture{
-        width = i32(img.width),
-        height = i32(img.height),
+    return Texture{
+		dimensions = Texture_Dimensions {
+			width = i32(img.width),
+			height = i32(img.height),
+		},
         data = final_pixels_ptr[:final_pixels_size],
         final_pixels_ptr = final_pixels_ptr,
         final_pixels_size = final_pixels_size,
     }
 }
 
-load_texture_from_png_file :: proc(file_path : string) -> texture {
+load_texture_from_png_file :: proc(file_path : string) -> Texture {
 	
 	bytes, ok := file.read_entire_file(file_path)
 	assert(ok)
@@ -161,9 +164,11 @@ load_texture_from_png_file :: proc(file_path : string) -> texture {
 
 	defer image.destroy(img)
 
-	return texture {
-		width = i32(img.width),
-		height = i32(img.height),
+	return Texture {
+		dimensions = Texture_Dimensions {
+			width = i32(img.width),
+			height = i32(img.height),
+		},
 		data = bytes,
 		final_pixels_ptr = raw_data(img.pixels.buf),
 		final_pixels_size = uint(slice.size(img.pixels.buf[:])),
