@@ -14,6 +14,8 @@ import util "lib/sokol_utils"
 
 import "shader"
 
+import ass "engine_core/asset"
+
 Game_Memory :: struct {
 	pip: sg.Pipeline,
 	bind: sg.Bindings,
@@ -37,7 +39,7 @@ game_app_default_desc :: proc() -> sapp.Desc {
 		width = 1280,
 		height = 720,
 		sample_count = 4,
-		window_title = "Toy ",
+		window_title = "Toy Game",
 		icon = { sokol_default = false },
 		logger = { func = slog.func },
 		html5_update_document_title = true,
@@ -69,19 +71,6 @@ game_init :: proc() {
 		environment = sglue.environment(),
 		logger = { func = slog.func },
 	})
-
-	// The remainder of this proc just sets up a sample cube and loads the
-	// texture to put on the cube's sides.
-	//
-	// The cube is from https://github.com/floooh/sokol-odin/blob/main/examples/cube/main.odin
-
-	/*
-		Cube vertex buffer with packed vertex formats for color and texture coords.
-		Note that a vertex format which must be portable across all
-		backends must only use the normalized integer formats
-		(BYTE4N, UBYTE4N, SHORT2N, SHORT4N), which can be converted
-		to floating point formats in the vertex shader inputs.
-	*/
 
 	vertices := [?]Vertex {
 		// pos               color       uvs

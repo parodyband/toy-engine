@@ -1,4 +1,4 @@
-package render
+package asset
 
 import "base:runtime"
 
@@ -6,15 +6,11 @@ import "core:log"
 import "core:image/png"
 import "core:image"
 import "core:slice"
-
 import "core:fmt"
 
 import "../../lib/glTF2"
 
-import file "../fileIO"
-import "../render"
-
-// Loading
+import file "../../lib/sokol_utils"
 
 load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> mesh {
 
@@ -165,7 +161,7 @@ load_texture_from_png_file :: proc(file_path : string) -> texture {
 
 	defer image.destroy(img)
 
-	return render.texture {
+	return texture {
 		width = i32(img.width),
 		height = i32(img.height),
 		data = bytes,

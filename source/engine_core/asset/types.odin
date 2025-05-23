@@ -1,4 +1,4 @@
-﻿package render
+﻿package asset
 
 // import slog  "../../sokol/log"
 // import sapp  "../../sokol/app"

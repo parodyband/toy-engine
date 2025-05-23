@@ -214,6 +214,9 @@ main :: proc() {
 	app_desc.cleanup_cb = cleanup
 	app_desc.event_cb = event
 
+	cur_name := app_desc.window_title
+	app_desc.window_title = fmt.caprintf("%s - %s", cur_name, "[Hot Reload]")
+
 	sapp.run(app_desc)
 
 	free_all(context.temp_allocator)
