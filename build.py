@@ -23,7 +23,7 @@ args_parser = argparse.ArgumentParser(
 
 args_parser.add_argument("-hot-reload",        action="store_true",   help="Build hot reload game DLL. Also builds executable if game not already running. If the game is running, it will hot reload the game DLL.")
 args_parser.add_argument("-release",           action="store_true",   help="Build release game executable. Note: Deletes everything in the 'build/release' directory to make sure you get a clean release.")
-args_parser.add_argument("-update-sokol",      action="store_true",   help="Download latest Sokol bindings and latest Sokol shader compiler. Happens automatically when the 'sokol-shdc' and 'source/sokol' directories are missing. Note: Deletes everything in 'sokol-shdc' and 'source/sokol' directories. Also causes -compile-sokol to happen.")
+args_parser.add_argument("-update-sokol",      action="store_true",   help="Download latest Sokol bindings and latest Sokol shader compiler. Happens automatically when the 'sokol-shdc' and 'source/lib/sokol' directories are missing. Note: Deletes everything in 'sokol-shdc' and 'source/lib/sokol' directories. Also causes -compile-sokol to happen.")
 args_parser.add_argument("-compile-sokol",     action="store_true",   help="Compile Sokol C libraries for the current platform. Also compile web (WASM) libraries if emscripten is found (optional). Use -emsdk-path to point out emscripten SDK if not in PATH.")
 args_parser.add_argument("-run",               action="store_true",   help="Run the executable after compiling it. For web builds, starts a local server and opens in browser.")
 args_parser.add_argument("-debug",             action="store_true",   help="Create debuggable binaries. Makes it possible to debug hot reload and release build in a debugger. For the web build it means that better error messages are printed to console. Debug mode comes with a performance penalty.")
@@ -144,7 +144,10 @@ def main():
 		else:
 			# For regular executables
 			print("Starting " + exe_path)
-			subprocess.Popen(exe_path)
+			# Get the absolute path of the executable
+			exe_abs_path = os.path.abspath(exe_path)
+			# Run the executable with the project root as the working directory
+			subprocess.Popen([exe_abs_path], cwd=os.getcwd())
 
 def run_with_renderdoc_capture(exe_path):
 	"""Build and run the game with RenderDoc capture (Windows only)"""
@@ -478,7 +481,7 @@ def build_hot_reload():
 	if not os.path.exists(out_dir):
 		make_dirs(out_dir)
 
-	exe = "game_hot_reload" + executable_extension()
+	exe = out_dir + "/game_hot_reload" + executable_extension()
 	dll_final_name = out_dir + "/game" + dll_extension()
 	dll = dll_final_name
 
@@ -497,7 +500,7 @@ def build_hot_reload():
 	if args.gl:
 		dll_extra_args += " -define:SOKOL_USE_GL=true"
 
-	game_running = process_exists(exe)
+	game_running = process_exists(os.path.basename(exe))
 
 	if IS_WINDOWS:
 		if not game_running:
@@ -505,7 +508,11 @@ def build_hot_reload():
 
 			for f in out_dir_files:
 				if f.endswith(".dll"):
-					os.remove(os.path.join(out_dir, f))
+					try:
+						os.remove(os.path.join(out_dir, f))
+					except PermissionError:
+						# File is in use, skip it
+						pass
 
 			if os.path.exists(pdb_dir):
 				shutil.rmtree(pdb_dir)
@@ -525,6 +532,13 @@ def build_hot_reload():
 		# On windows we make sure the PDB name for the DLL is unique on each
 		# build. This makes debugging work properly.
 		dll_extra_args += " -pdb-name:%s/game_%i.pdb" % (pdb_dir, pdb_number + 1)
+
+		dll_name = "sokol_dll_windows_x64_d3d11_debug.dll" if args.debug else "sokol_dll_windows_x64_d3d11_release.dll"
+		dll_dest = out_dir + "/" + dll_name
+
+		if not os.path.exists(dll_dest):
+			print("Copying %s" % dll_name)
+			shutil.copyfile(SOKOL_PATH + "/" + dll_name, dll_dest)
 
 	print("Building " + dll_final_name + "...")
 	execute("odin build source -define:SOKOL_DLL=true -build-mode:dll -out:%s %s" % (dll, dll_extra_args))
@@ -552,30 +566,24 @@ def build_hot_reload():
 		exe_extra_args += " -define:SOKOL_USE_GL=true"
 
 	print("Building " + exe + "...")
-	execute("odin build source/main_hot_reload -strict-style -define:SOKOL_DLL=true -vet -out:%s %s" % (exe, exe_extra_args))
-
-	if IS_WINDOWS:
-		dll_name = "sokol_dll_windows_x64_d3d11_debug.dll" if args.debug else "sokol_dll_windows_x64_d3d11_release.dll"
-
-		if not os.path.exists(dll_name):
-			print("Copying %s" % dll_name)
-			shutil.copyfile(SOKOL_PATH + "/" + dll_name, dll_name)
+	execute("odin build source/lib/main_hot_reload -strict-style -define:SOKOL_DLL=true -vet -out:%s %s" % (exe, exe_extra_args))
 
 	if IS_OSX:
-		dylib_folder = "source/sokol/dylib"
+		dylib_folder = "source/lib/sokol/dylib"
 
 		if not os.path.exists(dylib_folder):
 			print("Dynamic libraries for OSX don't seem to be built. Please re-run 'build.py -compile-sokol'.")
 			exit(1)
 
-		if not os.path.exists("dylib"):
-			os.mkdir("dylib")
+		dylib_out_dir = out_dir + "/dylib"
+		if not os.path.exists(dylib_out_dir):
+			os.mkdir(dylib_out_dir)
 
 		dylibs = os.listdir(dylib_folder)
 
 		for d in dylibs:
 			src = "%s/%s" % (dylib_folder, d)
-			dest = "dylib/%s" % d
+			dest = "%s/%s" % (dylib_out_dir, d)
 			do_copy = False
 
 			if not os.path.exists(dest):
@@ -587,7 +595,18 @@ def build_hot_reload():
 				print("Copying %s to %s" % (src, dest))
 				shutil.copyfile(src, dest)
 
-	return "./" + exe
+	# Copy assets folder to the build directory
+	assets_src = "assets"
+	assets_dest = out_dir + "/assets"
+	if os.path.exists(assets_src):
+		# Only copy if source exists and destination doesn't exist or is outdated
+		if not os.path.exists(assets_dest) or not game_running:
+			if os.path.exists(assets_dest):
+				shutil.rmtree(assets_dest)
+			print("Copying assets folder...")
+			shutil.copytree(assets_src, assets_dest)
+
+	return exe
 
 def build_release():
 	out_dir = "build/release"
@@ -614,7 +633,7 @@ def build_release():
 	if args.gl:
 		extra_args += " -define:SOKOL_USE_GL=true"
 
-	execute("odin build source/main_release -out:%s -strict-style -vet %s" % (exe, extra_args))
+	execute("odin build source/lib/main_release -out:%s -strict-style -vet %s" % (exe, extra_args))
 	shutil.copytree("assets", out_dir + "/assets")
 
 	return exe
@@ -629,7 +648,7 @@ def build_web():
 		odin_extra_args += " -debug"
 
 	print("Building js_wasm32 game object...")
-	execute("odin build source/main_web -target:js_wasm32 -build-mode:obj -vet -strict-style -out:%s/game %s" % (out_dir, odin_extra_args))
+	execute("odin build source/lib/main_web -target:js_wasm32 -build-mode:obj -vet -strict-style -out:%s/game %s" % (out_dir, odin_extra_args))
 	odin_path = subprocess.run(["odin", "root"], capture_output=True, text=True).stdout
 
 	shutil.copyfile(os.path.join(odin_path, "core/sys/wasm/js/odin.js"), os.path.join(out_dir, "odin.js"))
@@ -639,19 +658,19 @@ def build_web():
 
 	emcc_files = [
 		"%s/game.wasm.o" % out_dir,
-		"source/sokol/app/sokol_app_wasm_gl_" + wasm_lib_suffix,
-		"source/sokol/glue/sokol_glue_wasm_gl_" + wasm_lib_suffix,
-		"source/sokol/gfx/sokol_gfx_wasm_gl_" + wasm_lib_suffix,
-		"source/sokol/shape/sokol_shape_wasm_gl_" + wasm_lib_suffix,
-		"source/sokol/log/sokol_log_wasm_gl_" + wasm_lib_suffix,
-		"source/sokol/gl/sokol_gl_wasm_gl_" + wasm_lib_suffix,
+		"source/lib/sokol/app/sokol_app_wasm_gl_" + wasm_lib_suffix,
+		"source/lib/sokol/glue/sokol_glue_wasm_gl_" + wasm_lib_suffix,
+		"source/lib/sokol/gfx/sokol_gfx_wasm_gl_" + wasm_lib_suffix,
+		"source/lib/sokol/shape/sokol_shape_wasm_gl_" + wasm_lib_suffix,
+		"source/lib/sokol/log/sokol_log_wasm_gl_" + wasm_lib_suffix,
+		"source/lib/sokol/gl/sokol_gl_wasm_gl_" + wasm_lib_suffix,
 	]
 
 	emcc_files_str = " ".join(emcc_files)
 
 	# Note --preload-file assets, this bakes in the whole assets directory into
 	# the web build.
-	emcc_flags = "--shell-file source/web/index_template.html --preload-file assets -sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS"
+	emcc_flags = "--shell-file source/lib/web/index_template.html --preload-file assets -sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS"
 
 	build_flags = ""
 
@@ -703,7 +722,7 @@ def executable_extension():
 
 	return ".bin"
 
-SOKOL_PATH = "source/sokol"
+SOKOL_PATH = "source/lib/sokol"
 SOKOL_SHDC_PATH = "sokol-shdc"
 
 def update_sokol():
@@ -715,7 +734,7 @@ def update_sokol():
 
 		temp_zip = "sokol-temp.zip"
 		temp_folder = "sokol-temp"
-		print("Downloading Sokol Odin bindings to directory source/sokol...")
+		print("Downloading Sokol Odin bindings to directory source/lib/sokol...")
 		urllib.request.urlretrieve(SOKOL_ZIP_URL, temp_zip)
 
 		with zipfile.ZipFile(temp_zip) as zip_file:

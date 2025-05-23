@@ -26,7 +26,7 @@ when ODIN_OS == .Windows {
 	DLL_EXT :: ".so"
 }
 
-GAME_DLL_DIR :: "build/hot_reload/"
+GAME_DLL_DIR :: "./"
 GAME_DLL_PATH :: GAME_DLL_DIR + "game" + DLL_EXT
 
 // We copy the DLL because using it directly would lock it, which would prevent

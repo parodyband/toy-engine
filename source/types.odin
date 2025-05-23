@@ -1,5 +1,5 @@
 package game
-import sapp "sokol/app"
+import sapp "lib/sokol/app"
 
 Camera :: struct {
     fov : f32,

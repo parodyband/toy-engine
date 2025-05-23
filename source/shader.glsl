@@ -1,5 +1,5 @@
 @header package game
-@header import sg "sokol/gfx"
+@header import sg "lib/sokol/gfx"
 
 @ctype mat4 Mat4
 

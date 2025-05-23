@@ -8,7 +8,7 @@ package main_web
 import "core:log"
 import "base:runtime"
 
-import game ".."
+import game "../../"
 import sapp "../sokol/app"
 
 main :: proc() {

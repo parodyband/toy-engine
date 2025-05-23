@@ -5,10 +5,12 @@ import "core:image/png"
 import "core:log"
 import "core:slice"
 
-import sapp  "sokol/app"
-import sg    "sokol/gfx"
-import sglue "sokol/glue"
-import slog  "sokol/log"
+import sapp  "lib/sokol/app"
+import sg    "lib/sokol/gfx"
+import sglue "lib/sokol/glue"
+import slog  "lib/sokol/log"
+
+import util "lib/sokol_utils"
 
 Game_Memory :: struct {
 	pip: sg.Pipeline,
@@ -129,7 +131,7 @@ game_init :: proc() {
 		data = { ptr = &indices, size = size_of(indices) },
 	})
 
-	if img_data, img_data_ok := read_entire_file("assets/test.png", context.temp_allocator); img_data_ok {
+	if img_data, img_data_ok := util.read_entire_file("assets/test.png", context.temp_allocator); img_data_ok {
 		if img, img_err := png.load_from_bytes(img_data, allocator = context.temp_allocator); img_err == nil {
 			g.bind.images[IMG_tex] = sg.make_image({
 				width = i32(img.width),
@@ -250,7 +252,7 @@ game_event :: proc(event: ^sapp.Event) {
 
 move_camera :: proc(deltaTime: f32) {
 	// Camera movement speed
-	move_speed: f32 = 25.0
+	move_speed: f32 = 50.0
     rot_speed:  f32 = 0.25
 
     // Mouse look

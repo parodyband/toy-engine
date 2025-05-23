@@ -1,5 +1,5 @@
 package game
-import sg "sokol/gfx"
+import sg "lib/sokol/gfx"
 /*
     #version:1# (machine generated, don't edit!)
 

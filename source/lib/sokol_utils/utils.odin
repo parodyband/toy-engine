@@ -1,9 +1,9 @@
 // Wraps os.read_entire_file and os.write_entire_file, but they also work with emscripten.
 
-package game
+package sokol_utils
 
 import "core:os"
-import "web"
+import "../web"
 
 _ :: os
 _ :: web
