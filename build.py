@@ -11,6 +11,7 @@ import functools
 import webbrowser
 import time
 import sys
+import stat
 from enum import Enum
 import glob
 import re
@@ -151,8 +152,35 @@ def main():
 			print("Starting " + exe_path)
 			# Get the absolute path of the executable
 			exe_abs_path = os.path.abspath(exe_path)
-			# Run the executable with the project root as the working directory
-			subprocess.Popen([exe_abs_path], cwd=os.getcwd())
+			exe_dir = os.path.dirname(exe_abs_path)
+			
+			# Verify the executable exists and is executable
+			if not os.path.exists(exe_abs_path):
+				print(f"Error: Executable not found: {exe_abs_path}")
+				exit(1)
+			
+			if IS_LINUX or IS_OSX:
+				if not os.access(exe_abs_path, os.X_OK):
+					print(f"Error: Executable is not executable: {exe_abs_path}")
+					print("Trying to fix permissions...")
+					make_executable(exe_abs_path)
+			
+			try:
+				# Run the executable from its own directory so it can find relative files like dylibs
+				print(f"Launching: {exe_abs_path}")
+				print(f"Working directory: {exe_dir}")
+				process = subprocess.Popen([exe_abs_path], cwd=exe_dir)
+				print(f"Game started with PID: {process.pid}")
+			except FileNotFoundError as e:
+				print(f"Error: Could not find executable: {e}")
+				exit(1)
+			except PermissionError as e:
+				print(f"Error: Permission denied when trying to run executable: {e}")
+				print("Make sure the file has execute permissions.")
+				exit(1)
+			except Exception as e:
+				print(f"Error starting executable: {e}")
+				exit(1)
 
 def run_with_renderdoc_capture(exe_path):
 	"""Build and run the game with RenderDoc capture (Windows only)"""
@@ -573,6 +601,9 @@ def build_hot_reload():
 	print("Building " + exe + "...")
 	execute("odin build source/lib/main_hot_reload -strict-style -define:SOKOL_DLL=true -vet -out:%s %s" % (exe, exe_extra_args))
 
+	# Make executable on Unix-like systems
+	make_executable(exe)
+
 	if IS_OSX:
 		dylib_folder = "source/lib/sokol/dylib"
 
@@ -639,6 +670,10 @@ def build_release():
 		extra_args += " -define:SOKOL_USE_GL=true"
 
 	execute("odin build source/lib/main_release -out:%s -strict-style -vet %s" % (exe, extra_args))
+	
+	# Make executable on Unix-like systems
+	make_executable(exe)
+	
 	shutil.copytree("assets", out_dir + "/assets")
 
 	return exe
@@ -860,6 +895,14 @@ def make_dirs(path):
 
 		if not os.path.exists(p):
 			os.mkdir(p)
+
+def make_executable(file_path):
+	"""Make a file executable on Unix-like systems"""
+	if IS_LINUX or IS_OSX:
+		if os.path.exists(file_path):
+			current_permissions = os.stat(file_path).st_mode
+			os.chmod(file_path, current_permissions | stat.S_IEXEC)
+			print(f"Made {file_path} executable")
 
 print = functools.partial(print, flush=True)
 

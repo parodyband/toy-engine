@@ -23,6 +23,9 @@
       },
       "options": {
         "cwd": "${workspaceFolder}"
+      },
+      "osx": {
+        "command": "python3"
       }
     },
     {
@@ -50,6 +53,9 @@
         "statusbar": {
           "hide": true
         }
+      },
+      "osx": {
+        "command": "python3"
       }
     },
     {
@@ -77,6 +83,9 @@
         "reveal": "always",
         "focus": false,
         "panel": "shared"
+      },
+      "osx": {
+        "command": "python3"
       }
     },
     {
@@ -98,6 +107,10 @@
       },
       "options": {
         "cwd": "${workspaceFolder}"
+      },
+      "osx": {
+        "command": "python3",
+        "args": ["build.py", "-web", "-run", "-port", "8080"]
       }
     },
     {
@@ -119,6 +132,9 @@
       },
       "options": {
         "cwd": "${workspaceFolder}"
+      },
+      "osx": {
+        "command": "python3"
       }
     },
     {
@@ -140,6 +156,9 @@
       },
       "options": {
         "cwd": "${workspaceFolder}"
+      },
+      "osx": {
+        "command": "python3"
       }
     },
     {
@@ -156,11 +175,11 @@
         "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -update-sokol && exit"]
       },
       "linux": {
-        "command": "python",
+        "command": "python3",
         "args": ["build.py", "-update-sokol"]
       },
       "osx": {
-        "command": "python",
+        "command": "python3",
         "args": ["build.py", "-update-sokol"]
       }
     },
@@ -178,11 +197,11 @@
         "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -compile-sokol && exit"]
       },
       "linux": {
-        "command": "python",
+        "command": "python3",
         "args": ["build.py", "-compile-sokol"]
       },
       "osx": {
-        "command": "python",
+        "command": "python3",
         "args": ["build.py", "-compile-sokol"]
       }
     },
@@ -205,6 +224,9 @@
       "windows": {
         "command": "python",
         "args": ["build.py", "-capture"]
+      },
+      "osx": {
+        "command": "python3"
       }
     }
   ]

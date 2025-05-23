@@ -7,7 +7,6 @@ import "core:mem"
 import "core:os"
 import "core:strconv"
 import "core:strings"
-import web "../sokol_utils"
 
 IS_WASM_TARGET :: ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32
 
@@ -73,11 +72,7 @@ load_from_file :: proc(file_name: string, allocator := context.allocator) -> (da
 
     file_content: []byte
     ok: bool
-    when IS_WASM_TARGET {
-        file_content, ok = web.read_entire_file(file_name, allocator)
-    } else {
-        file_content, ok = os.read_entire_file(file_name, allocator)
-    }
+    file_content, ok = _read_entire_file(file_name, allocator)
     if !ok {
         return nil, GLTF_Error{type = .Cant_Read_File, proc_name = #procedure, param = {name = file_name}}
     }
