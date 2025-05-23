@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build and Run Toyengine",
+      "label": "Build and Run Hot Reload",
       "type": "shell",
       "command": "python",
       "args": ["build.py", "-hot-reload", "-run"],
@@ -26,7 +26,7 @@
       }
     },
     {
-      "label": "Build Toyengine",
+      "label": "Build Hot Reload",
       "type": "shell",
       "command": "python",
       "args": ["build.py", "-hot-reload"],

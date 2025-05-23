@@ -33,8 +33,8 @@ game_app_default_desc :: proc() -> sapp.Desc {
 		width = 1280,
 		height = 720,
 		sample_count = 4,
-		window_title = "Odin + Sokol hot reload template",
-		icon = { sokol_default = true },
+		window_title = "Toy ",
+		icon = { sokol_default = false },
 		logger = { func = slog.func },
 		html5_update_document_title = true,
 	}
@@ -250,8 +250,8 @@ game_event :: proc(event: ^sapp.Event) {
 
 move_camera :: proc(deltaTime: f32) {
 	// Camera movement speed
-	move_speed: f32 = 30.0
-    rot_speed:  f32 = 0.3
+	move_speed: f32 = 25.0
+    rot_speed:  f32 = 0.25
 
     // Mouse look
     mouse_dx := g.game_input.mouse_delta.x

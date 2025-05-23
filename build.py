@@ -13,6 +13,8 @@ import time
 import sys
 from enum import Enum
 import glob
+import re
+import hashlib
 
 args_parser = argparse.ArgumentParser(
 	prog = "build.py",
@@ -223,6 +225,161 @@ def run_with_renderdoc_capture(exe_path):
 	else:
 		print("No .rdc files found in captures folder.")
 
+def preprocess_shader(shader_path, processed_files=None, include_stack=None, include_guards=None):
+	"""
+	Preprocesses a GLSL shader file by resolving #import statements
+	
+	Features:
+	- Circular dependency detection
+	- Include guards (#pragma once or #ifndef style)
+	- Relative path resolution
+	- Clear error messages with include stack trace
+	"""
+	if processed_files is None:
+		processed_files = {}  # Maps path -> content hash
+	if include_stack is None:
+		include_stack = []
+	if include_guards is None:
+		include_guards = set()
+	
+	# Normalize the path
+	shader_path = os.path.normpath(shader_path)
+	
+	# Check for circular imports
+	if shader_path in include_stack:
+		error_msg = f"Circular import detected:\n"
+		for i, path in enumerate(include_stack):
+			error_msg += f"  {'  ' * i}-> {path}\n"
+		error_msg += f"  {'  ' * len(include_stack)}-> {shader_path} (circular reference)"
+		raise Exception(error_msg)
+	
+	# Add to include stack
+	include_stack.append(shader_path)
+	
+	try:
+		# Read the shader file
+		if not os.path.exists(shader_path):
+			raise FileNotFoundError(f"Shader file not found: {shader_path}")
+		
+		with open(shader_path, 'r', encoding='utf-8') as f:
+			content = f.read()
+		
+		# Check if this file uses include guards
+		lines = content.splitlines(keepends=True)
+		output_lines = []
+		
+		# Track if we should process this file (for include guards)
+		should_process = True
+		guard_name = None
+		uses_pragma_once = False
+		
+		# Check for #pragma once at the beginning of the file
+		for line in lines:
+			stripped = line.strip()
+			if not stripped or stripped.startswith('//'):
+				continue
+			if stripped == '#pragma once':
+				uses_pragma_once = True
+				guard_name = shader_path  # Use file path as unique identifier
+				if guard_name in include_guards:
+					should_process = False
+				else:
+					include_guards.add(guard_name)
+			break
+		
+		if not should_process:
+			include_stack.pop()
+			return f"// File already included: {os.path.basename(shader_path)}\n"
+		
+		# Process the file line by line
+		i = 0
+		while i < len(lines):
+			line = lines[i]
+			stripped = line.strip()
+			
+			# Handle #import statements
+			if stripped.startswith('#import'):
+				# Extract the import path using regex to handle both "path" and <path>
+				import_match = re.match(r'#import\s+["<]([^">]+)[">]', stripped)
+				if not import_match:
+					raise SyntaxError(f"Invalid #import syntax in {shader_path} at line {i+1}: {stripped}")
+				
+				import_path = import_match.group(1)
+				
+				# Resolve the import path relative to the current file's directory
+				current_dir = os.path.dirname(shader_path)
+				resolved_path = os.path.normpath(os.path.join(current_dir, import_path))
+				
+				# Check if file has already been processed (by content hash)
+				if resolved_path in processed_files:
+					output_lines.append(f"// Already imported: {import_path}\n")
+				else:
+					# Add import comment
+					output_lines.append(f"\n// BEGIN IMPORT: {import_path} (from {os.path.basename(shader_path)})\n")
+					
+					# Recursively process the imported file
+					try:
+						imported_content = preprocess_shader(resolved_path, processed_files, include_stack.copy(), include_guards)
+						output_lines.append(imported_content)
+						
+						# Calculate and store content hash
+						content_hash = hashlib.md5(imported_content.encode()).hexdigest()
+						processed_files[resolved_path] = content_hash
+						
+					except Exception as e:
+						# Re-raise with context
+						raise Exception(f"Error importing '{import_path}' from {shader_path}:\n{str(e)}")
+					
+					output_lines.append(f"// END IMPORT: {import_path}\n\n")
+			
+			# Handle traditional include guards (#ifndef, #define, #endif)
+			elif stripped.startswith('#ifndef') and i + 1 < len(lines):
+				# Check if this is an include guard pattern
+				guard_match = re.match(r'#ifndef\s+(\w+)', stripped)
+				if guard_match:
+					potential_guard = guard_match.group(1)
+					next_line = lines[i + 1].strip()
+					if next_line == f'#define {potential_guard}':
+						# This looks like an include guard
+						if potential_guard in include_guards:
+							# Skip to the matching #endif
+							endif_count = 1
+							j = i + 2
+							while j < len(lines) and endif_count > 0:
+								if lines[j].strip().startswith('#if'):
+									endif_count += 1
+								elif lines[j].strip().startswith('#endif'):
+									endif_count -= 1
+								j += 1
+							include_stack.pop()
+							return f"// File already included (guard: {potential_guard})\n"
+						else:
+							include_guards.add(potential_guard)
+							output_lines.append(line)
+					else:
+						output_lines.append(line)
+				else:
+					output_lines.append(line)
+			
+			else:
+				# Regular line, just append
+				output_lines.append(line)
+			
+			i += 1
+		
+		result = ''.join(output_lines)
+		
+		# Remove from include stack
+		include_stack.pop()
+		
+		return result
+		
+	except Exception as e:
+		# Remove from include stack before re-raising
+		if include_stack and include_stack[-1] == shader_path:
+			include_stack.pop()
+		raise
+
 def build_shaders():
 	print("Building shaders...")
 	shdc = get_shader_compiler()
@@ -232,25 +389,64 @@ def build_shaders():
 	for root, dirs, files in os.walk("source"):
 		for file in files:
 			if file.endswith(".glsl"):
-				shaders.append(os.path.join(root, file))
+				filepath = os.path.join(root, file)
+				
+				# Check if this is a main shader file (has @program directive)
+				# or a utility file (has #pragma once or no @program)
+				with open(filepath, 'r', encoding='utf-8') as f:
+					content = f.read()
+					
+				# Skip files that are utility/import-only files
+				# These typically have #pragma once or don't have @program directive
+				if '#pragma once' in content:
+					print(f"Skipping utility file: {filepath}")
+					continue
+					
+				# Only compile files that have Sokol shader program definitions
+				if '@program' not in content:
+					print(f"Skipping non-program shader: {filepath}")
+					continue
+				
+				shaders.append(filepath)
 
 	for s in shaders:
 		out_dir = os.path.dirname(s)
 		out_filename = os.path.basename(s)
-		out = out_dir + "/gen__" + (out_filename.removesuffix("glsl") + "odin")
-
-		langs = ""
-
-		if args.web:
-			langs = "glsl300es"
-		elif IS_WINDOWS:
-			langs = "hlsl5"
-		elif IS_LINUX:
-			langs = "glsl430"
-		elif IS_OSX:
-			langs = "glsl410" if args.gl else "metal_macos"
-
-		execute(shdc + " -i %s -o %s -l %s -f sokol_odin" % (s, out, langs))
+		
+		# First preprocess the shader to handle imports
+		try:
+			print(f"Preprocessing {s}...")
+			preprocessed_content = preprocess_shader(s)
+			
+			# Write preprocessed content to a temporary file
+			temp_file = s + ".preprocessed"
+			with open(temp_file, 'w', encoding='utf-8') as f:
+				f.write(preprocessed_content)
+			
+			# Compile the preprocessed shader
+			out = out_dir + "/gen__" + (out_filename.removesuffix("glsl") + "odin")
+			
+			langs = ""
+			
+			if args.web:
+				langs = "glsl300es"
+			elif IS_WINDOWS:
+				langs = "hlsl5"
+			elif IS_LINUX:
+				langs = "glsl430"
+			elif IS_OSX:
+				langs = "glsl410" if args.gl else "metal_macos"
+			
+			# Compile the preprocessed file
+			execute(shdc + " -i %s -o %s -l %s -f sokol_odin" % (temp_file, out, langs))
+			
+			# Clean up temporary file
+			os.remove(temp_file)
+			
+		except Exception as e:
+			print(f"Error processing shader {s}:")
+			print(str(e))
+			exit(1)
 
 def get_shader_compiler():
 	path = ""

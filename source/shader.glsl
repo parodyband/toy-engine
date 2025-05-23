@@ -1,7 +1,6 @@
-#import "sokol/sokol.glsl"
-
 @header package game
 @header import sg "sokol/gfx"
+
 @ctype mat4 Mat4
 
 @vs vs
@@ -24,6 +23,8 @@ void main() {
 @end
 
 @fs fs
+#import "shaders/utils.glsl"
+
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
 
@@ -32,7 +33,8 @@ in vec2 uv;
 out vec4 frag_color;
 
 void main() {
-    frag_color = texture(sampler2D(tex, smp), uv) * color;
+    vec4 addColor = add(color, vec4(0.5, 0.5, 0.5, 1.0));
+    frag_color = texture(sampler2D(tex, smp), uv) * addColor;
 }
 @end
 
