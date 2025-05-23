@@ -11,7 +11,7 @@ import "core:os"
 import "core:os/os2"
 import "base:runtime"
 import "core:mem"
-import game ".."
+import game "../../"
 import sapp "../sokol/app"
 
 _ :: mem

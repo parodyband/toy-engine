@@ -12,6 +12,8 @@ import slog  "lib/sokol/log"
 
 import util "lib/sokol_utils"
 
+import "shader"
+
 Game_Memory :: struct {
 	pip: sg.Pipeline,
 	bind: sg.Bindings,
@@ -133,7 +135,7 @@ game_init :: proc() {
 
 	if img_data, img_data_ok := util.read_entire_file("assets/test.png", context.temp_allocator); img_data_ok {
 		if img, img_err := png.load_from_bytes(img_data, allocator = context.temp_allocator); img_err == nil {
-			g.bind.images[IMG_tex] = sg.make_image({
+			g.bind.images[shader.IMG_tex] = sg.make_image({
 				width = i32(img.width),
 				height = i32(img.height),
 				data = {
@@ -152,16 +154,16 @@ game_init :: proc() {
 	}
 
 	// a sampler with default options to sample the above image as texture
-	g.bind.samplers[SMP_smp] = sg.make_sampler({})
+	g.bind.samplers[shader.SMP_smp] = sg.make_sampler({})
 
 	// shader and pipeline object
 	g.pip = sg.make_pipeline({
-		shader = sg.make_shader(texcube_shader_desc(sg.query_backend())),
+		shader = sg.make_shader(shader.texcube_shader_desc(sg.query_backend())),
 		layout = {
 			attrs = {
-				ATTR_texcube_pos = { format = .FLOAT3 },
-				ATTR_texcube_color0 = { format = .UBYTE4N },
-				ATTR_texcube_texcoord0 = { format = .SHORT2N },
+				shader.ATTR_texcube_pos = { format = .FLOAT3 },
+				shader.ATTR_texcube_color0 = { format = .UBYTE4N },
+				shader.ATTR_texcube_texcoord0 = { format = .SHORT2N },
 			},
 		},
 		index_type = .UINT16,
@@ -181,7 +183,7 @@ game_frame :: proc() {
 	move_camera(dt)
 
 	// vertex shader uniform with model-view-projection matrix
-	vs_params := Vs_Params {
+	vs_params := shader.Vs_Params {
 		mvp = compute_mvp(g.main_camera.position, g.main_camera.rotation),
 	}
 
@@ -194,7 +196,7 @@ game_frame :: proc() {
 	sg.begin_pass({ action = pass_action, swapchain = sglue.swapchain() })
 	sg.apply_pipeline(g.pip)
 	sg.apply_bindings(g.bind)
-	sg.apply_uniforms(UB_vs_params, { ptr = &vs_params, size = size_of(vs_params) })
+	sg.apply_uniforms(shader.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params) })
 
 	// 36 is the number of indices
 	sg.draw(0, 36, 1)
