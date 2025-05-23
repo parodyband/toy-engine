@@ -10,13 +10,13 @@ Draw_Call :: struct {
     index_count : int,
     skip_render : bool,
     visible     : bool,
-    renderer    : ^Mesh_Renderer,
+    renderer    : Mesh_Renderer,
 }
 
 Mesh_Renderer :: struct {
-    render_mesh      :   asset.Mesh,
-    render_materials : []asset.Material,
-    render_transform : Transform,
+    mesh      :   asset.Mesh,
+    materials  : []asset.Material,
+    transform : Transform,
 }
 
 Transform :: struct {

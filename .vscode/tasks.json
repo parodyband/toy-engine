@@ -53,6 +53,33 @@
       }
     },
     {
+      "label": "Compile Shaders",
+      "type": "shell",
+      "command": "python",
+      "args": ["build.py", "-shaders"],
+      "group": "build",
+      "problemMatcher": {
+        "owner": "custom",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\s*(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
       "label": "Build and Run Toyengine for Web",
       "type": "shell",
       "command": "python",

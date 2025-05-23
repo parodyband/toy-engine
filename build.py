@@ -28,6 +28,7 @@ args_parser.add_argument("-compile-sokol",     action="store_true",   help="Comp
 args_parser.add_argument("-run",               action="store_true",   help="Run the executable after compiling it. For web builds, starts a local server and opens in browser.")
 args_parser.add_argument("-debug",             action="store_true",   help="Create debuggable binaries. Makes it possible to debug hot reload and release build in a debugger. For the web build it means that better error messages are printed to console. Debug mode comes with a performance penalty.")
 args_parser.add_argument("-no-shader-compile", action="store_true",   help="Don't compile shaders.")
+args_parser.add_argument("-shaders",           action="store_true",   help="Compile shaders only. Useful for quick shader iteration.")
 args_parser.add_argument("-web",               action="store_true",   help="Build web release. Make sure emscripten (emcc) is in your PATH or use -emsdk-path flag to specify where it lives.")
 args_parser.add_argument("-port",              type=int, default=8000, help="Port to use when serving web builds with -run. Default is 8000.")
 args_parser.add_argument("-capture",           action="store_true",   help="Build and run with RenderDoc capture (Windows only). Automatically captures a frame and opens in RenderDoc.")
@@ -49,8 +50,8 @@ if args.capture:
 if num_build_modes > 1:
 	print("Can only use one of: -hot-reload, -release, -web and -capture.")
 	exit(1)
-elif num_build_modes == 0 and not args.update_sokol and not args.compile_sokol:
-	print("You must use one of: -hot-reload, -release, -web, -capture, -update-sokol or -compile-sokol.")
+elif num_build_modes == 0 and not args.update_sokol and not args.compile_sokol and not args.shaders:
+	print("You must use one of: -hot-reload, -release, -web, -capture, -update-sokol, -compile-sokol or -shaders.")
 	exit(1)
 
 SYSTEM = platform.system()
@@ -75,8 +76,12 @@ def main():
 	if do_compile:
 		compile_sokol()
 
-	if not args.no_shader_compile:
+	if not args.no_shader_compile or args.shaders:
 		build_shaders()
+	
+	# If we're only building shaders, we're done
+	if args.shaders:
+		return
 
 	exe_path = ""
 	
@@ -670,7 +675,7 @@ def build_web():
 
 	# Note --preload-file assets, this bakes in the whole assets directory into
 	# the web build.
-	emcc_flags = "--shell-file source/lib/web/index_template.html --preload-file assets -sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS"
+	emcc_flags = "--shell-file source/lib/web/index_template.html --preload-file assets -sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sMAX_WEBGL_VERSION=2 -sASSERTIONS -sALLOW_MEMORY_GROWTH=1 -sINITIAL_HEAP=16777216 -sSTACK_SIZE=65536"
 
 	build_flags = ""
 

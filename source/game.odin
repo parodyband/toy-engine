@@ -1,26 +1,27 @@
 package game
 
 import "core:math/linalg"
-import "core:image/png"
-import "core:log"
-import "core:slice"
+// import "core:image/png"
+// import "core:log"
+// import "core:slice"
 
 import sapp  "lib/sokol/app"
 import sg    "lib/sokol/gfx"
 import sglue "lib/sokol/glue"
 import slog  "lib/sokol/log"
 
-import util "lib/sokol_utils"
+// import util "lib/sokol_utils"
+import gltf "lib/glTF2"
 
 import "shader"
 
 import ass "engine_core/asset"
+import ren "engine_core/renderer"
 
 Game_Memory :: struct {
-	pip: sg.Pipeline,
-	bind: sg.Bindings,
 	main_camera: Camera,
 	game_input: Input_State,
+	draw_calls: [dynamic]ren.Draw_Call,
 }
 
 Mat4 :: matrix[4,4]f32
@@ -72,97 +73,103 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
-	vertices := [?]Vertex {
-		// pos               color       uvs
-		{ -1.0, -1.0, -1.0,  0xFF0000FF,     0,     0 },
-		{  1.0, -1.0, -1.0,  0xFF0000FF, 32767,     0 },
-		{  1.0,  1.0, -1.0,  0xFF0000FF, 32767, 32767 },
-		{ -1.0,  1.0, -1.0,  0xFF0000FF,     0, 32767 },
+	{
+        glb_data      := ass.load_glb_data_from_file("assets/car.glb")
+        glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
+        glb_texture   := ass.load_texture_from_glb_data(glb_data)
 
-		{ -1.0, -1.0,  1.0,  0xFF00FF00,     0,     0 },
-		{  1.0, -1.0,  1.0,  0xFF00FF00, 32767,     0 },
-		{  1.0,  1.0,  1.0,  0xFF00FF00, 32767, 32767 },
-		{ -1.0,  1.0,  1.0,  0xFF00FF00,     0, 32767 },
+		mesh_renderer := ren.Mesh_Renderer{
+			materials = []ass.Material{
+				{ // Element 0
+					tint_color     = {1.0,1.0,1.0,1.0},
+					albedo_texture = glb_texture,
+				},
+			},
+			mesh = glb_mesh_data,
+			transform = {
+				position = {0,0,0},
+				rotation = {0,0,0},
+				scale    = {1,1,1},
+			},
+		}
 
-		{ -1.0, -1.0, -1.0,  0xFFFF0000,     0,     0 },
-		{ -1.0,  1.0, -1.0,  0xFFFF0000, 32767,     0 },
-		{ -1.0,  1.0,  1.0,  0xFFFF0000, 32767, 32767 },
-		{ -1.0, -1.0,  1.0,  0xFFFF0000,     0, 32767 },
+		add_draw_call(mesh_renderer)
 
-		{  1.0, -1.0, -1.0,  0xFFFF007F,     0,     0 },
-		{  1.0,  1.0, -1.0,  0xFFFF007F, 32767,     0 },
-		{  1.0,  1.0,  1.0,  0xFFFF007F, 32767, 32767 },
-		{  1.0, -1.0,  1.0,  0xFFFF007F,     0, 32767 },
+        defer gltf.unload(glb_data)
+    }
+}
 
-		{ -1.0, -1.0, -1.0,  0xFFFF7F00,     0,     0 },
-		{ -1.0, -1.0,  1.0,  0xFFFF7F00, 32767,     0 },
-		{  1.0, -1.0,  1.0,  0xFFFF7F00, 32767, 32767 },
-		{  1.0, -1.0, -1.0,  0xFFFF7F00,     0, 32767 },
+add_draw_call :: proc(mesh_renderer : ren.Mesh_Renderer) {
+	// bind draw calls
+	draw_call : ren.Draw_Call
+	
+	// Set the renderer field
+	draw_call.renderer = mesh_renderer
+	
+	// Set the index count
+	draw_call.index_count = mesh_renderer.mesh.index_count
 
-		{ -1.0,  1.0, -1.0,  0xFF007FFF,     0,     0 },
-		{ -1.0,  1.0,  1.0,  0xFF007FFF, 32767,     0 },
-		{  1.0,  1.0,  1.0,  0xFF007FFF, 32767, 32767 },
-		{  1.0,  1.0, -1.0,  0xFF007FFF,     0, 32767 },
-	}
-	g.bind.vertex_buffers[0] = sg.make_buffer({
-		data = { ptr = &vertices, size = size_of(vertices) },
+	assert(mesh_renderer.mesh.vertex_count > 0, "Error: Vertex Buffer Count for Mesh is 0")
+	draw_call.bind.vertex_buffers[0] = sg.make_buffer({
+		data = { ptr = raw_data(mesh_renderer.mesh.vertex_buffer_bytes), size = uint(len(mesh_renderer.mesh.vertex_buffer_bytes)) },
 	})
 
-	// create an index buffer for the cube
-	indices := [?]u16 {
-		0, 1, 2,  0, 2, 3,
-		6, 5, 4,  7, 6, 4,
-		8, 9, 10,  8, 10, 11,
-		14, 13, 12,  15, 14, 12,
-		16, 17, 18,  16, 18, 19,
-		22, 21, 20,  23, 22, 20,
-	}
-	g.bind.index_buffer = sg.make_buffer({
+	assert(len(mesh_renderer.mesh.normal_buffer_bytes) > 0, "Error: Normal Buffer Count for Mesh is 0")
+	draw_call.bind.vertex_buffers[1] = sg.make_buffer({
+		data = { ptr = raw_data(mesh_renderer.mesh.normal_buffer_bytes), size = uint(len(mesh_renderer.mesh.normal_buffer_bytes)) },
+	})
+
+	assert(len(mesh_renderer.mesh.uv_buffer_bytes) > 0, "Error: Uv Buffer Count for Mesh is 0")
+	draw_call.bind.vertex_buffers[2] = sg.make_buffer({
+		data = { ptr = raw_data(mesh_renderer.mesh.uv_buffer_bytes),     size = uint(len(mesh_renderer.mesh.uv_buffer_bytes)) },
+	})
+
+	assert(len(mesh_renderer.mesh.index_buffer_bytes) > 0, "Error: Index Buffer Count for Mesh is 0")
+	draw_call.bind.index_buffer = sg.make_buffer({
 		type = .INDEXBUFFER,
-		data = { ptr = &indices, size = size_of(indices) },
+		data = { ptr = raw_data(mesh_renderer.mesh.index_buffer_bytes),  size = uint(len(mesh_renderer.mesh.index_buffer_bytes)) },
 	})
 
-	if img_data, img_data_ok := util.read_entire_file("assets/test.png", context.temp_allocator); img_data_ok {
-		if img, img_err := png.load_from_bytes(img_data, allocator = context.temp_allocator); img_err == nil {
-			g.bind.images[shader.IMG_tex] = sg.make_image({
-				width = i32(img.width),
-				height = i32(img.height),
-				data = {
-					subimage = {
-						0 = {
-							0 = { ptr = raw_data(img.pixels.buf), size = uint(slice.size(img.pixels.buf[:])) },
-						},
+	albedo_texture := mesh_renderer.materials[0].albedo_texture
+
+	draw_call.bind.images[shader.IMG_tex] = sg.make_image({
+		width  = albedo_texture.dimensions.width,
+		height = albedo_texture.dimensions.height,
+		data = {
+			subimage = {
+				0 = {
+					0 = {
+						ptr  = albedo_texture.final_pixels_ptr,
+						size = albedo_texture.final_pixels_size,
 					},
 				},
-			})
-		} else {
-			log.error(img_err)
-		}
-	} else {
-		log.error("Failed loading texture")
-	}
+			},
+		},
+	})
 
 	// a sampler with default options to sample the above image as texture
-	g.bind.samplers[shader.SMP_smp] = sg.make_sampler({})
+	draw_call.bind.samplers[shader.SMP_smp] = sg.make_sampler({})
 
 	// shader and pipeline object
-	g.pip = sg.make_pipeline({
+	draw_call.pipeline = sg.make_pipeline({
 		shader = sg.make_shader(shader.texcube_shader_desc(sg.query_backend())),
 		layout = {
 			attrs = {
-				shader.ATTR_texcube_pos = { format = .FLOAT3 },
-				shader.ATTR_texcube_color0 = { format = .UBYTE4N },
-				shader.ATTR_texcube_texcoord0 = { format = .SHORT2N },
+				shader.ATTR_texcube_pos       = { format = .FLOAT3 },
+				shader.ATTR_texcube_normal    = { format = .FLOAT3, buffer_index = 1 },
+				shader.ATTR_texcube_texcoord0 = { format = .FLOAT2, buffer_index = 2 },
 			},
 		},
 		index_type = .UINT16,
 		cull_mode = .BACK,
-		face_winding = .CCW,
+		face_winding = .CW,
 		depth = {
 			compare = .LESS_EQUAL,
 			write_enabled = true,
 		},
 	})
+
+	append(&g.draw_calls, draw_call)
 }
 
 @export
@@ -171,10 +178,7 @@ game_frame :: proc() {
 
 	move_camera(dt)
 
-	// vertex shader uniform with model-view-projection matrix
-	vs_params := shader.Vs_Params {
-		mvp = compute_mvp(g.main_camera.position, g.main_camera.rotation),
-	}
+	// Opaque Pass
 
 	pass_action := sg.Pass_Action {
 		colors = {
@@ -183,12 +187,18 @@ game_frame :: proc() {
 	}
 
 	sg.begin_pass({ action = pass_action, swapchain = sglue.swapchain() })
-	sg.apply_pipeline(g.pip)
-	sg.apply_bindings(g.bind)
-	sg.apply_uniforms(shader.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params) })
 
-	// 36 is the number of indices
-	sg.draw(0, 36, 1)
+	for i in 0..<len(g.draw_calls) {
+		// vertex shader uniform with model-view-projection matrix
+		vs_params := shader.Vs_Params {
+			vp    = compute_mvp(g.main_camera.position, g.main_camera.rotation),
+			model = compute_model_matrix(g.draw_calls[i].renderer.transform),
+		}
+		sg.apply_pipeline(g.draw_calls[i].pipeline)
+		sg.apply_bindings(g.draw_calls[i].bind)
+		sg.apply_uniforms(shader.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params) })
+		sg.draw(0, i32(g.draw_calls[i].index_count), 1)
+	}
 
 	sg.end_pass()
 	sg.commit()
@@ -212,6 +222,27 @@ compute_mvp :: proc (position : [3]f32, rotation : [3]f32) -> Mat4 {
     view := view_rotation_inv * trans
     flip_z := linalg.matrix4_scale_f32({1.0, 1.0, -1.0})
     return proj * flip_z * view
+}
+
+compute_model_matrix :: proc(t: ren.Transform) -> Mat4 {
+    position := t.position
+    trans := linalg.matrix4_translate_f32({position[0], position[1], position[2]})
+
+    // Rotation matrices (convert degrees to radians)
+    // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
+    rot_pitch := linalg.matrix4_rotate_f32(t.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+    rot_yaw   := linalg.matrix4_rotate_f32(t.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+    rot_roll  := linalg.matrix4_rotate_f32(t.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+
+    // Scale matrix
+    scale := linalg.matrix4_scale_f32({t.scale[0], t.scale[1], t.scale[2]})
+
+    // Combine rotations: roll, then pitch, then yaw (matching camera rotation order)
+    rot_combined := rot_yaw * rot_pitch * rot_roll
+
+    // Final model matrix: T * R * S (Translation * Rotation * Scale)
+    // This ensures objects rotate and scale around their own origin point
+    return trans * rot_combined * scale
 }
 
 force_reset: bool

@@ -179,10 +179,10 @@ load_glb_data_from_file :: proc(path : string) -> ^glTF2.Data {
 	glb_data, error := glTF2.load_from_file(path)
 
 	switch err_val in error {
-	case glTF2.GLTF_Error:
-		fmt.printfln("GLTF Error: %s", err_val)
-	case glTF2.JSON_Error:
-		fmt.printfln("GLTF Json Error: %s", err_val)
+		case glTF2.GLTF_Error:
+			fmt.printfln("GLTF Error: %s", err_val)
+		case glTF2.JSON_Error:
+			fmt.printfln("GLTF Json Error: %s", err_val)
 	}
 
 	for mesh in glb_data.meshes {

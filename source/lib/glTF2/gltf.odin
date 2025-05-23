@@ -7,7 +7,7 @@ import "core:mem"
 import "core:os"
 import "core:strconv"
 import "core:strings"
-import "../web"
+import web "../sokol_utils"
 
 IS_WASM_TARGET :: ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32
 

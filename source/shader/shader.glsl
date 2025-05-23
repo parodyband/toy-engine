@@ -6,20 +6,26 @@
 
 @vs vs
 layout(binding=0) uniform vs_params {
-    mat4 mvp;
+    mat4 vp;
+    mat4 model;
 };
 
 in vec4 pos;
-in vec4 color0;
+in vec4 normal;
 in vec2 texcoord0;
 
-out vec4 color;
 out vec2 uv;
+out vec4 world_pos;
+out vec3 world_norm;
+out vec3 v_normal;
 
 void main() {
-    gl_Position = mvp * pos;
-    color = color0;
+    gl_Position = vp * model * pos;
     uv = texcoord0;
+
+    world_pos = model * pos;
+    world_norm = normalize((model * vec4(normal.xyz, 0.0)).xyz);
+    v_normal = normalize(mat3(model) * normal.xyz);
 }
 @end
 
@@ -29,13 +35,14 @@ void main() {
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
 
-in vec4 color;
 in vec2 uv;
+in vec4 world_pos;
+in vec4 world_norm;
+in vec3 v_normal;
 out vec4 frag_color;
 
 void main() {
-    vec4 addColor = add(color, vec4(1.0, 0.0, 0.0, 1.0));
-    frag_color = texture(sampler2D(tex, smp), uv) * addColor;
+    frag_color = texture(sampler2D(tex, smp), uv);
 }
 @end
 
