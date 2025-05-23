@@ -73,30 +73,34 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
-	{
-        glb_data      := ass.load_glb_data_from_file("assets/car.glb")
-        glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
-        glb_texture   := ass.load_texture_from_glb_data(glb_data)
+	add_mesh_by_name("assets/monkey.glb")
+	add_mesh_by_name("assets/car.glb")
+	add_mesh_by_name("assets/floor.glb")
+}
 
-		mesh_renderer := ren.Mesh_Renderer{
-			materials = []ass.Material{
-				{ // Element 0
-					tint_color     = {1.0,1.0,1.0,1.0},
-					albedo_texture = glb_texture,
-				},
+add_mesh_by_name :: proc(path : string) {
+	glb_data      := ass.load_glb_data_from_file(path)
+	glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
+	glb_texture   := ass.load_texture_from_glb_data(glb_data)
+
+	mesh_renderer := ren.Mesh_Renderer{
+		materials = []ass.Material{
+			{ // Element 0
+				tint_color     = {1.0,1.0,1.0,1.0},
+				albedo_texture = glb_texture,
 			},
-			mesh = glb_mesh_data,
-			transform = {
-				position = {0,0,0},
-				rotation = {0,0,0},
-				scale    = {1,1,1},
-			},
-		}
+		},
+		mesh = glb_mesh_data,
+		transform = {
+			position = {0,0,0},
+			rotation = {0,0,0},
+			scale    = {1,1,1},
+		},
+	}
 
-		add_draw_call(mesh_renderer)
+	add_draw_call(mesh_renderer)
 
-        defer gltf.unload(glb_data)
-    }
+	defer gltf.unload(glb_data)
 }
 
 add_draw_call :: proc(mesh_renderer : ren.Mesh_Renderer) {
@@ -147,8 +151,12 @@ add_draw_call :: proc(mesh_renderer : ren.Mesh_Renderer) {
 		},
 	})
 
-	// a sampler with default options to sample the above image as texture
-	draw_call.bind.samplers[shader.SMP_smp] = sg.make_sampler({})
+	draw_call.bind.samplers[shader.SMP_smp] = sg.make_sampler({
+		max_anisotropy = 8,
+		min_filter     = .LINEAR,
+		mag_filter     = .LINEAR,
+		mipmap_filter  = .LINEAR,
+	})
 
 	// shader and pipeline object
 	draw_call.pipeline = sg.make_pipeline({
