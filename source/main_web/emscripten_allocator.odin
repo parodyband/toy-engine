@@ -26,7 +26,7 @@ emscripten_allocator_proc :: proc(
 	old_size: int,
 	location := #caller_location
 ) -> (data: []byte, err: mem.Allocator_Error)  {
-	// These aligned alloc procs are almost indentical those in
+	// These aligned alloc procs are almost identical those in
 	// `_heap_allocator_proc` in `core:os`. Without the proper alignment you
 	// cannot use maps and simd features.
 
