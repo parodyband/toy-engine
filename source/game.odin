@@ -15,14 +15,15 @@ import "shader"
 import ass "engine_core/asset"
 import ren "engine_core/renderer"
 import deb "engine_core/debug"
+import inp "engine_core/input"
 
 Game_Memory :: struct {
-	main_camera       : Camera,
-	game_input        : Input_State,
+	main_camera       : ren.Camera,
+	game_input        : inp.Input_State,
 	draw_calls        : [dynamic]ren.Draw_Call,
 	debug_draw_calls  : [dynamic]deb.Debug_Draw_Call,
 	debug_pipelines   : [deb.Depth_Test_Mode]sgl.Pipeline,
-	toggle_debug      : bool
+	toggle_debug      : bool,
 }
 
 Mat4 :: matrix[4,4]f32
@@ -34,6 +35,8 @@ Vertex :: struct {
 	color: u32,
 	u, v: u16,
 }
+
+
 
 @export
 game_app_default_desc :: proc() -> sapp.Desc {
@@ -53,21 +56,17 @@ game_init :: proc() {
 	g = new(Game_Memory)
 
 	// Initialize camera
-	g.main_camera = Camera {
+	g.main_camera = ren.Camera {
 		fov = 60,
 		position = {0, 20, -40},
 		rotation = {0, 0, 0},
 	}
 	
 	// Initialize input state
-	g.game_input = Input_State {
-		mouse_delta = {0, 0, 0},
-		keys_down = make(map[sapp.Keycode]bool),
-		mouse_buttons_down = make(map[sapp.Mousebutton]bool),
-		mouse_locked = false,
-	}
+	inp.init_input_state(&g.game_input)
+	inp.init(&g.game_input)
 
-	g.toggle_debug = false;
+	g.toggle_debug = false
 
 	game_hot_reloaded(g)
 
@@ -267,7 +266,7 @@ game_frame :: proc() {
 
 	g.draw_calls[0].renderer.transform.position = {0,10,0}
 
-	if g.game_input.keys_down[.F1] {
+	if inp.GetKeyDown(.F1) {
 		g.toggle_debug = !g.toggle_debug
 	}
 
@@ -299,6 +298,9 @@ game_frame :: proc() {
 	sg.end_pass()
 	sg.commit()
 
+	// Clear input state changes for next frame
+	inp.clear_frame_states()
+
 	free_all(context.temp_allocator)
 }
 
@@ -308,24 +310,23 @@ force_reset: bool
 game_event :: proc(event: ^sapp.Event) {
 	#partial switch event.type {
 	 case .MOUSE_MOVE:
-        g.game_input.mouse_delta = {event.mouse_dx, event.mouse_dy, 0}
+        inp.process_mouse_move(event.mouse_dx, event.mouse_dy)
             
 	case .KEY_DOWN:
-		g.game_input.keys_down[event.key_code] = true
+		inp.process_key_down(event.key_code)
 		
 	case .KEY_UP:
-		g.game_input.keys_down[event.key_code] = false
+		inp.process_key_up(event.key_code)
 		
 	case .MOUSE_DOWN:
-		g.game_input.mouse_buttons_down[event.mouse_button] = true
+		inp.process_mouse_button_down(event.mouse_button)
 		
 		if event.mouse_button == .RIGHT {
-			sapp.lock_mouse(!g.game_input.mouse_locked)
-			g.game_input.mouse_locked = !g.game_input.mouse_locked
+			inp.toggle_mouse_lock()
 		}
 		
 	case .MOUSE_UP:
-		g.game_input.mouse_buttons_down[event.mouse_button] = false
+		inp.process_mouse_button_up(event.mouse_button)
 	}
 }
 
@@ -335,15 +336,14 @@ move_camera :: proc(deltaTime: f32) {
     rot_speed:  f32 = 0.25
 
     // Mouse look
-    mouse_dx := g.game_input.mouse_delta.x
-    mouse_dy := g.game_input.mouse_delta.y
-    if g.game_input.mouse_locked {
+    mouse_delta := inp.get_mouse_delta()
+    mouse_dx := mouse_delta.x
+    mouse_dy := mouse_delta.y
+    if inp.is_mouse_locked() {
         g.main_camera.rotation.y += mouse_dx * rot_speed
         g.main_camera.rotation.x += mouse_dy * rot_speed
         g.main_camera.rotation.x = linalg.clamp(g.main_camera.rotation.x, -89.0, 89.0)
     }
-
-    g.game_input.mouse_delta = {0, 0, 0}
 
     // for WASD
     pitch_rad := linalg.to_radians(g.main_camera.rotation.x)
@@ -366,26 +366,26 @@ move_camera :: proc(deltaTime: f32) {
     up: Vec3 = {0, 1, 0}
     move: Vec3 = {0, 0, 0}
 
-    if g.game_input.keys_down[.W] {
+    if inp.GetKey(.W) {
         move += forward
     }
-    if g.game_input.keys_down[.S] {
+    if inp.GetKey(.S) {
         move -= forward
     }
-    if g.game_input.keys_down[.A] {
+    if inp.GetKey(.A) {
         move -= right
     }
-    if g.game_input.keys_down[.D] {
+    if inp.GetKey(.D) {
         move += right
     }
-    if g.game_input.keys_down[.Q] {
+    if inp.GetKey(.Q) {
         move += up
     }
-    if g.game_input.keys_down[.E] {
+    if inp.GetKey(.E) {
         move -= up
     }
 
-	if g.game_input.keys_down[.ESCAPE] {
+	if inp.GetKey(.ESCAPE) {
 		sapp.quit()
 	}
 

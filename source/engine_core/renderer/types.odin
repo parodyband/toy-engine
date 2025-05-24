@@ -24,3 +24,9 @@ Transform :: struct {
     rotation : [3]f32,
     scale    : [3]f32,
 }
+
+Camera :: struct {
+    fov : f32,
+    position : [3]f32,
+    rotation : [3]f32,
+}
