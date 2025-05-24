@@ -7,15 +7,14 @@ import sg    "lib/sokol/gfx"
 import sglue "lib/sokol/glue"
 import slog  "lib/sokol/log"
 import sgl   "lib/sokol/gl"
-
-import gltf "lib/glTF2"
-
-import "shader"
+import gltf  "lib/glTF2"
 
 import ass "engine_core/asset"
 import ren "engine_core/renderer"
 import deb "engine_core/debug"
 import inp "engine_core/input"
+
+import "shader"
 
 Mat4 :: matrix[4,4]f32
 Vec3 :: [3]f32
