@@ -39,12 +39,7 @@ game_app_default_desc :: proc() -> sapp.Desc {
 game_init :: proc() {
 	g = new(common.Game_Memory)
 
-	// Initialize camera
-	g.main_camera = ren.Camera {
-		fov = 60,
-		position = {0, 20, -40},
-		rotation = {0, 0, 0},
-	}
+	gameplay.on_awake(g)
 	
 	// Initialize input state
 	inp.init_input_state(&g.game_input)

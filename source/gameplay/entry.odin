@@ -86,6 +86,15 @@ update_flycam :: proc(delta_time: f32, camera : ^ren.Camera) {
     }
 }
 
+on_awake  :: proc(memory : ^common.Game_Memory) {
+    // Initialize camera
+	memory.main_camera = ren.Camera {
+		fov = 60,
+		position = {0, 20, -40},
+		rotation = {0, 0, 0},
+	}
+}
+
 on_update :: proc(delta_time : f32, time : f32, memory : ^common.Game_Memory) {
     update_flycam(delta_time, &memory.main_camera)
 }
