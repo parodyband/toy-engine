@@ -6,7 +6,7 @@
 
 @vs vs
 layout(binding=0) uniform vs_params {
-    mat4 vp;
+    mat4 view_projection;
     mat4 model;
 };
 
@@ -20,7 +20,7 @@ out vec3 world_norm;
 out vec3 v_normal;
 
 void main() {
-    gl_Position = vp * model * pos;
+    gl_Position = view_projection * model * pos;
     uv = texcoord0;
 
     world_pos = model * pos;

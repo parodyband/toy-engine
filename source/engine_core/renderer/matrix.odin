@@ -7,7 +7,7 @@ import ren "../renderer"
 
 Mat4 :: matrix[4,4]f32
 
-compute_mvp :: proc (position : [3]f32, rotation : [3]f32) -> Mat4 {
+compute_view_projection :: proc (position : [3]f32, rotation : [3]f32) -> Mat4 {
     proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 1000.0)
     
     // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)

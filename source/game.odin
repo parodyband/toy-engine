@@ -22,6 +22,7 @@ Game_Memory :: struct {
 	draw_calls        : [dynamic]ren.Draw_Call,
 	debug_draw_calls  : [dynamic]deb.Debug_Draw_Call,
 	debug_pipelines   : [deb.Depth_Test_Mode]sgl.Pipeline,
+	toggle_debug      : bool
 }
 
 Mat4 :: matrix[4,4]f32
@@ -65,6 +66,8 @@ game_init :: proc() {
 		mouse_buttons_down = make(map[sapp.Mousebutton]bool),
 		mouse_locked = false,
 	}
+
+	g.toggle_debug = false;
 
 	game_hot_reloaded(g)
 
@@ -252,6 +255,8 @@ draw_debug :: proc() {
 
 	//clear debug draw calls
 	clear(&g.debug_draw_calls)
+
+	sgl.draw()
 }
 
 @export
@@ -262,29 +267,8 @@ game_frame :: proc() {
 
 	g.draw_calls[0].renderer.transform.position = {0,10,0}
 
-	// Example debug drawing calls - you can remove/modify these as needed
 	if g.game_input.keys_down[.F1] {
-		// Draw a debug line (default depth test = Front)
-		deb.draw_line_segment({-5, 0, 0}, {5, 0, 0}, {1, 0, 0, 1}, &g.debug_draw_calls)
-		
-		// Draw a debug sphere that always renders on top (depth test = Off)
-		deb.draw_wire_sphere({0, 0, 0}, 2.0, {0, 1, 0, 1}, &g.debug_draw_calls, .Off)
-		
-		// Draw a debug cube with normal depth testing (depth test = Front)
-		cube_transform := ren.Transform{
-			position = {0, 0, 5},
-			rotation = {45, 45, 0},
-			scale = {2, 2, 2},
-		}
-		deb.draw_wire_cube(cube_transform, {0, 0, 1, 1}, &g.debug_draw_calls, .Front)
-		
-		// Draw another cube that renders behind everything (depth test = Back)
-		back_cube_transform := ren.Transform{
-			position = {5, 0, 0},
-			rotation = {0, 45, 45},
-			scale = {1.5, 1.5, 1.5},
-		}
-		deb.draw_wire_cube(back_cube_transform, {1, 1, 0, 0.5}, &g.debug_draw_calls, .Front)
+		g.toggle_debug = !g.toggle_debug
 	}
 
 	// Opaque Pass
@@ -298,7 +282,7 @@ game_frame :: proc() {
 
 	for i in 0..<len(g.draw_calls) {
 		vs_params := shader.Vs_Params {
-			vp    = ren.compute_mvp(g.main_camera.position, g.main_camera.rotation),
+			view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
 			model = ren.compute_model_matrix(g.draw_calls[i].renderer.transform),
 		}
 		sg.apply_pipeline(g.draw_calls[i].pipeline)
@@ -307,16 +291,15 @@ game_frame :: proc() {
 		sg.draw(0, i32(g.draw_calls[i].index_count), 1)
 	}
 
-	// Draw debug primitives
-	draw_debug()
+	if g.toggle_debug {
+		deb.draw_wire_sphere({0, 0, 0}, 2.0, {0, 1, 0, 1}, &g.debug_draw_calls, .Off)
+		draw_debug()
+	}
 
 	sg.end_pass()
-
 	sg.commit()
 
 	free_all(context.temp_allocator)
-
-	sgl.draw()
 }
 
 force_reset: bool
