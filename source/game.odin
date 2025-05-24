@@ -54,6 +54,28 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
+	append(&g.lights, ren.Point_Light{
+		color = {1,1,1,1},
+		intensity = .5,
+		transform = {
+			position = {0,15,0},
+		},
+	})
+	append(&g.lights, ren.Point_Light{
+		color = {0,1,1,1},
+		intensity = .5,
+		transform = {
+			position = {-15,10,-15},
+		},
+	})
+	append(&g.lights, ren.Point_Light{
+		color = {1,1,0,1},
+		intensity = .5,
+		transform = {
+			position = {15,10,15},
+		},
+	})
+
 	deb.init(&g.debug_pipelines)
 
 	add_mesh_by_name("assets/monkey.glb")
@@ -253,25 +275,37 @@ game_frame :: proc() {
 	// Opaque Pass
 	pass_action := sg.Pass_Action {
 		colors = {
-			0 = { load_action = .CLEAR, clear_value = { 0.41, 0.68, 0.83, 1 } },
+			0 = { load_action = .CLEAR, clear_value = { 0.2, 0.2, 0.2, 1 } },
 		},
 	}
 
 	sg.begin_pass({ action = pass_action, swapchain = sglue.swapchain() })
 
+	light_params : shader.Fs_Spot_Light
+	for i in 0..<len(g.lights) {
+		if i < len(light_params.color) {
+			light_params.position[i].xyz = g.lights[i].transform.position
+			light_params.color[i]        = g.lights[i].color
+			light_params.intensity[i].x  = g.lights[i].intensity
+
+			deb.draw_wire_sphere(g.lights[i].transform.position, .5, g.lights[i].color, &g.debug_draw_calls)
+		}
+	}
+
 	for i in 0..<len(g.draw_calls) {
 		vs_params := shader.Vs_Params {
 			view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
 			model = ren.compute_model_matrix(g.draw_calls[i].renderer.transform),
+			view_pos = g.main_camera.position,
 		}
 		sg.apply_pipeline(g.draw_calls[i].pipeline)
 		sg.apply_bindings(g.draw_calls[i].bind)
-		sg.apply_uniforms(shader.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params) })
+		sg.apply_uniforms(shader.UB_vs_params,     { ptr = &vs_params, size = size_of(vs_params) })
+		sg.apply_uniforms(shader.UB_fs_spot_light, { ptr = &light_params, size = size_of(light_params) })
 		sg.draw(0, i32(g.draw_calls[i].index_count), 1)
 	}
 
 	if g.toggle_debug {
-		deb.draw_wire_sphere({0, 0, 0}, 2.0, {0, 1, 0, 1}, &g.debug_draw_calls, .Off)
 		draw_debug()
 	}
 
