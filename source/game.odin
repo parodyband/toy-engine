@@ -260,6 +260,8 @@ game_frame :: proc() {
 
 	move_camera(dt)
 
+	g.draw_calls[0].renderer.transform.position = {0,10,0}
+
 	// Example debug drawing calls - you can remove/modify these as needed
 	if g.game_input.keys_down[.F1] {
 		// Draw a debug line (default depth test = Front)
@@ -286,7 +288,6 @@ game_frame :: proc() {
 	}
 
 	// Opaque Pass
-
 	pass_action := sg.Pass_Action {
 		colors = {
 			0 = { load_action = .CLEAR, clear_value = { 0.41, 0.68, 0.83, 1 } },
@@ -296,7 +297,6 @@ game_frame :: proc() {
 	sg.begin_pass({ action = pass_action, swapchain = sglue.swapchain() })
 
 	for i in 0..<len(g.draw_calls) {
-		// vertex shader uniform with model-view-projection matrix
 		vs_params := shader.Vs_Params {
 			vp    = ren.compute_mvp(g.main_camera.position, g.main_camera.rotation),
 			model = ren.compute_model_matrix(g.draw_calls[i].renderer.transform),
@@ -309,13 +309,14 @@ game_frame :: proc() {
 
 	// Draw debug primitives
 	draw_debug()
-	sgl.draw()
 
 	sg.end_pass()
 
 	sg.commit()
 
 	free_all(context.temp_allocator)
+
+	sgl.draw()
 }
 
 force_reset: bool

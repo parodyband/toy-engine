@@ -4,8 +4,8 @@ import ren "../renderer"
 Vec3 :: [3]f32
 
 Depth_Test_Mode :: enum {
-    Front,  // Draw if farther (GREATER_EQUAL) 
-    Off,   // Always draw (ALWAYS)
+    Front,
+    Off,
 }
 
 Debug_Draw_Call :: struct {
