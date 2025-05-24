@@ -1,27 +1,27 @@
 package game
 
 import "core:math/linalg"
-// import "core:image/png"
-// import "core:log"
-// import "core:slice"
 
 import sapp  "lib/sokol/app"
 import sg    "lib/sokol/gfx"
 import sglue "lib/sokol/glue"
 import slog  "lib/sokol/log"
+import sgl   "lib/sokol/gl"
 
-// import util "lib/sokol_utils"
 import gltf "lib/glTF2"
 
 import "shader"
 
 import ass "engine_core/asset"
 import ren "engine_core/renderer"
+import deb "engine_core/debug"
 
 Game_Memory :: struct {
-	main_camera: Camera,
-	game_input: Input_State,
-	draw_calls: [dynamic]ren.Draw_Call,
+	main_camera       : Camera,
+	game_input        : Input_State,
+	draw_calls        : [dynamic]ren.Draw_Call,
+	debug_draw_calls  : [dynamic]deb.Debug_Draw_Call,
+	debug_pipelines   : [deb.Depth_Test_Mode]sgl.Pipeline,
 }
 
 Mat4 :: matrix[4,4]f32
@@ -72,6 +72,8 @@ game_init :: proc() {
 		environment = sglue.environment(),
 		logger = { func = slog.func },
 	})
+
+	deb.init(&g.debug_pipelines)
 
 	add_mesh_by_name("assets/monkey.glb")
 	add_mesh_by_name("assets/car.glb")
@@ -180,11 +182,108 @@ add_draw_call :: proc(mesh_renderer : ren.Mesh_Renderer) {
 	append(&g.draw_calls, draw_call)
 }
 
+draw_debug :: proc() {
+	if len(g.debug_draw_calls) == 0 {
+		return
+	}
+
+	// Setup sokol-gl for debug drawing with proper depth testing
+	sgl.defaults()
+	
+	// Sort debug calls by depth test mode to minimize pipeline switches
+	current_depth_mode := deb.Depth_Test_Mode.Front
+	sgl.load_pipeline(g.debug_pipelines[current_depth_mode])
+	
+	// Compute projection matrix (same as renderer)
+	proj := linalg.matrix4_perspective(g.main_camera.fov * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 1000.0)
+	flip_z := linalg.matrix4_scale_f32({1.0, 1.0, -1.0})
+	proj_flip := proj * flip_z
+	
+	// Compute view matrix (inverse camera transform)
+	inv_rot_pitch := linalg.matrix4_rotate_f32(-g.main_camera.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+	inv_rot_yaw   := linalg.matrix4_rotate_f32(-g.main_camera.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+	inv_rot_roll  := linalg.matrix4_rotate_f32(-g.main_camera.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+	trans := linalg.matrix4_translate_f32({-g.main_camera.position[0], -g.main_camera.position[1], -g.main_camera.position[2]})
+	view_rot_inv := inv_rot_roll * inv_rot_pitch * inv_rot_yaw
+	view := view_rot_inv * trans
+	
+	// Load matrices into sokol-gl
+	sgl.matrix_mode_projection()
+	sgl.load_matrix(&proj_flip[0][0])
+	
+	sgl.matrix_mode_modelview()
+	sgl.load_matrix(&view[0][0])
+
+	// Draw all debug primitives
+	for i in 0..<len(g.debug_draw_calls) {
+		// Get the depth test mode for this draw call
+		depth_mode: deb.Depth_Test_Mode
+		switch data in g.debug_draw_calls[i].data {
+			case deb.Line_Segment_Data:
+				depth_mode = data.depth_test
+			case deb.Wire_Sphere_Data:
+				depth_mode = data.depth_test
+			case deb.Wire_Cube_Data:
+				depth_mode = data.depth_test
+		}
+		
+		// Switch pipeline if needed
+		if depth_mode != current_depth_mode {
+			current_depth_mode = depth_mode
+			sgl.load_pipeline(g.debug_pipelines[current_depth_mode])
+		}
+		
+		// Draw the primitive
+		switch draw_data in g.debug_draw_calls[i].data {
+			case deb.Line_Segment_Data:
+				sgl.c4f(draw_data.color[0], draw_data.color[1], draw_data.color[2], draw_data.color[3])
+				sgl.begin_lines()
+				sgl.v3f(draw_data.start[0], draw_data.start[1], draw_data.start[2])
+				sgl.v3f(draw_data.end[0], draw_data.end[1], draw_data.end[2])
+				sgl.end()
+				
+			case deb.Wire_Sphere_Data:
+				deb.draw_wire_sphere_immediate(draw_data.center, draw_data.radius, draw_data.color)
+				
+			case deb.Wire_Cube_Data:
+				deb.draw_wire_cube_immediate(draw_data.transform, draw_data.color)
+		}
+	}
+
+	//clear debug draw calls
+	clear(&g.debug_draw_calls)
+}
+
 @export
 game_frame :: proc() {
 	dt := f32(sapp.frame_duration())
 
 	move_camera(dt)
+
+	// Example debug drawing calls - you can remove/modify these as needed
+	if g.game_input.keys_down[.F1] {
+		// Draw a debug line (default depth test = Front)
+		deb.draw_line_segment({-5, 0, 0}, {5, 0, 0}, {1, 0, 0, 1}, &g.debug_draw_calls)
+		
+		// Draw a debug sphere that always renders on top (depth test = Off)
+		deb.draw_wire_sphere({0, 0, 0}, 2.0, {0, 1, 0, 1}, &g.debug_draw_calls, .Off)
+		
+		// Draw a debug cube with normal depth testing (depth test = Front)
+		cube_transform := ren.Transform{
+			position = {0, 0, 5},
+			rotation = {45, 45, 0},
+			scale = {2, 2, 2},
+		}
+		deb.draw_wire_cube(cube_transform, {0, 0, 1, 1}, &g.debug_draw_calls, .Front)
+		
+		// Draw another cube that renders behind everything (depth test = Back)
+		back_cube_transform := ren.Transform{
+			position = {5, 0, 0},
+			rotation = {0, 45, 45},
+			scale = {1.5, 1.5, 1.5},
+		}
+		deb.draw_wire_cube(back_cube_transform, {1, 1, 0, 0.5}, &g.debug_draw_calls, .Front)
+	}
 
 	// Opaque Pass
 
@@ -199,8 +298,8 @@ game_frame :: proc() {
 	for i in 0..<len(g.draw_calls) {
 		// vertex shader uniform with model-view-projection matrix
 		vs_params := shader.Vs_Params {
-			vp    = compute_mvp(g.main_camera.position, g.main_camera.rotation),
-			model = compute_model_matrix(g.draw_calls[i].renderer.transform),
+			vp    = ren.compute_mvp(g.main_camera.position, g.main_camera.rotation),
+			model = ren.compute_model_matrix(g.draw_calls[i].renderer.transform),
 		}
 		sg.apply_pipeline(g.draw_calls[i].pipeline)
 		sg.apply_bindings(g.draw_calls[i].bind)
@@ -208,49 +307,15 @@ game_frame :: proc() {
 		sg.draw(0, i32(g.draw_calls[i].index_count), 1)
 	}
 
+	// Draw debug primitives
+	draw_debug()
+	sgl.draw()
+
 	sg.end_pass()
+
 	sg.commit()
 
 	free_all(context.temp_allocator)
-}
-
-compute_mvp :: proc (position : [3]f32, rotation : [3]f32) -> Mat4 {
-    proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 1000.0)
-    
-    // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
-    inv_rot_pitch := linalg.matrix4_rotate_f32(-rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
-    inv_rot_yaw   := linalg.matrix4_rotate_f32(-rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
-    inv_rot_roll  := linalg.matrix4_rotate_f32(-rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
-    
-    // Create translation matrix for camera position (inverse of camera's world translation)
-    trans := linalg.matrix4_translate_f32({-position[0], -position[1], -position[2]})
-    
-    // View matrix V = R_inverse * T_inverse
-    view_rotation_inv := inv_rot_roll * inv_rot_pitch * inv_rot_yaw
-    view := view_rotation_inv * trans
-    flip_z := linalg.matrix4_scale_f32({1.0, 1.0, -1.0})
-    return proj * flip_z * view
-}
-
-compute_model_matrix :: proc(t: ren.Transform) -> Mat4 {
-    position := t.position
-    trans := linalg.matrix4_translate_f32({position[0], position[1], position[2]})
-
-    // Rotation matrices (convert degrees to radians)
-    // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
-    rot_pitch := linalg.matrix4_rotate_f32(t.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
-    rot_yaw   := linalg.matrix4_rotate_f32(t.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
-    rot_roll  := linalg.matrix4_rotate_f32(t.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
-
-    // Scale matrix
-    scale := linalg.matrix4_scale_f32({t.scale[0], t.scale[1], t.scale[2]})
-
-    // Combine rotations: roll, then pitch, then yaw (matching camera rotation order)
-    rot_combined := rot_yaw * rot_pitch * rot_roll
-
-    // Final model matrix: T * R * S (Translation * Rotation * Scale)
-    // This ensures objects rotate and scale around their own origin point
-    return trans * rot_combined * scale
 }
 
 force_reset: bool
@@ -351,6 +416,11 @@ move_camera :: proc(deltaTime: f32) {
 
 @export
 game_cleanup :: proc() {
+	// Destroy all debug pipelines
+	for mode in deb.Depth_Test_Mode {
+		sgl.destroy_pipeline(g.debug_pipelines[mode])
+	}
+	sgl.shutdown()
 	sg.shutdown()
 	free(g)
 }
