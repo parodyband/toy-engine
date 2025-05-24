@@ -17,26 +17,9 @@ import ren "engine_core/renderer"
 import deb "engine_core/debug"
 import inp "engine_core/input"
 
-Game_Memory :: struct {
-	main_camera       : ren.Camera,
-	game_input        : inp.Input_State,
-	draw_calls        : [dynamic]ren.Draw_Call,
-	debug_draw_calls  : [dynamic]deb.Debug_Draw_Call,
-	debug_pipelines   : [deb.Depth_Test_Mode]sgl.Pipeline,
-	toggle_debug      : bool,
-}
-
 Mat4 :: matrix[4,4]f32
 Vec3 :: [3]f32
 g: ^Game_Memory
-
-Vertex :: struct {
-	x, y, z: f32,
-	color: u32,
-	u, v: u16,
-}
-
-
 
 @export
 game_app_default_desc :: proc() -> sapp.Desc {
