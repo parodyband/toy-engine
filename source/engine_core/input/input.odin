@@ -1,5 +1,6 @@
 package input
 import sapp "../../lib/sokol/app"
+import fmt "core:fmt"
 
 // Global input state - will be set by the game
 input_state: ^Input_State
@@ -62,7 +63,8 @@ process_key_up :: proc(key_code: sapp.Keycode) {
 // Process mouse move event
 process_mouse_move :: proc(dx, dy: f32) {
     if input_state == nil do return
-    input_state.mouse_delta = {dx, dy, 0}
+    input_state.mouse_delta.x += dx
+    input_state.mouse_delta.y += dy
 }
 
 // Process mouse button down event
@@ -84,7 +86,7 @@ toggle_mouse_lock :: proc() {
     input_state.mouse_locked = !input_state.mouse_locked
 }
 
-// Get mouse delta
+// Get mouse delta for this frame (do not reset here; will be cleared at end of frame)
 get_mouse_delta :: proc() -> Vec3 {
     if input_state == nil do return {0, 0, 0}
     return input_state.mouse_delta
@@ -98,7 +100,10 @@ is_mouse_locked :: proc() -> bool {
 
 // Clear frame-based input states (call at end of frame)
 clear_frame_states :: proc() {
-    if input_state == nil do return
+    if input_state == nil {
+        fmt.println("Input not found")
+        return
+    }
     clear(&input_state.keys_just_pressed)
     clear(&input_state.keys_just_released)
     input_state.mouse_delta = {0, 0, 0}

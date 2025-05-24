@@ -1,8 +1,10 @@
-package game
-import ren "engine_core/renderer"
-import deb "engine_core/debug"
-import inp "engine_core/input"
-import sgl  "lib/sokol/gl"
+package common
+
+import ren "../engine_core/renderer"
+import deb "../engine_core/debug"
+import inp "../engine_core/input"
+import sgl "../lib/sokol/gl"
+
 Game_Memory :: struct {
 	main_camera       : ren.Camera,
 	game_input        : inp.Input_State,

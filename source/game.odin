@@ -14,11 +14,13 @@ import ren "engine_core/renderer"
 import deb "engine_core/debug"
 import inp "engine_core/input"
 
+import "gameplay"
 import "shader"
+import "common"
 
 Mat4 :: matrix[4,4]f32
 Vec3 :: [3]f32
-g: ^Game_Memory
+g: ^common.Game_Memory
 
 @export
 game_app_default_desc :: proc() -> sapp.Desc {
@@ -35,7 +37,7 @@ game_app_default_desc :: proc() -> sapp.Desc {
 
 @export
 game_init :: proc() {
-	g = new(Game_Memory)
+	g = new(common.Game_Memory)
 
 	// Initialize camera
 	g.main_camera = ren.Camera {
@@ -243,14 +245,15 @@ draw_debug :: proc() {
 @export
 game_frame :: proc() {
 	dt := f32(sapp.frame_duration())
+	t  := f32(sapp.frame_count())
 
-	move_camera(dt)
-
-	g.draw_calls[0].renderer.transform.position = {0,10,0}
+	gameplay.on_update(dt, t, g)
 
 	if inp.GetKeyDown(.F1) {
 		g.toggle_debug = !g.toggle_debug
 	}
+
+	g.draw_calls[0].renderer.transform.position = {0,10,0}
 
 	// Opaque Pass
 	pass_action := sg.Pass_Action {
@@ -312,74 +315,6 @@ game_event :: proc(event: ^sapp.Event) {
 	}
 }
 
-move_camera :: proc(deltaTime: f32) {
-	// Camera movement speed
-	move_speed: f32 = 50.0
-    rot_speed:  f32 = 0.25
-
-    // Mouse look
-    mouse_delta := inp.get_mouse_delta()
-    mouse_dx := mouse_delta.x
-    mouse_dy := mouse_delta.y
-    if inp.is_mouse_locked() {
-        g.main_camera.rotation.y += mouse_dx * rot_speed
-        g.main_camera.rotation.x += mouse_dy * rot_speed
-        g.main_camera.rotation.x = linalg.clamp(g.main_camera.rotation.x, -89.0, 89.0)
-    }
-
-    // for WASD
-    pitch_rad := linalg.to_radians(g.main_camera.rotation.x)
-    yaw_rad   := linalg.to_radians(g.main_camera.rotation.y)
-
-    // forward vector (camera forward) based on yaw (Y) and pitch (X)
-    forward: Vec3 = {
-         linalg.sin(yaw_rad) * linalg.cos(pitch_rad),
-        -linalg.sin(pitch_rad),
-         linalg.cos(yaw_rad) * linalg.cos(pitch_rad),
-    }
-
-    // right vector (camera right) perpendicular to forward and world up
-    right: Vec3 = {
-        linalg.cos(yaw_rad),
-        0,
-        -linalg.sin(yaw_rad),
-    }
-
-    up: Vec3 = {0, 1, 0}
-    move: Vec3 = {0, 0, 0}
-
-    if inp.GetKey(.W) {
-        move += forward
-    }
-    if inp.GetKey(.S) {
-        move -= forward
-    }
-    if inp.GetKey(.A) {
-        move -= right
-    }
-    if inp.GetKey(.D) {
-        move += right
-    }
-    if inp.GetKey(.Q) {
-        move += up
-    }
-    if inp.GetKey(.E) {
-        move -= up
-    }
-
-	if inp.GetKey(.ESCAPE) {
-		sapp.quit()
-	}
-
-	// Normalize the movement vector and apply speed
-	// Only move if the length of the vector is greater than a small threshold
-
-	if linalg.length(move) > 0.001 {
-        move = linalg.normalize(move)
-        g.main_camera.position += move * move_speed * deltaTime
-    }
-}
-
 @export
 game_cleanup :: proc() {
 	// Destroy all debug pipelines
@@ -398,12 +333,12 @@ game_memory :: proc() -> rawptr {
 
 @(export)
 game_memory_size :: proc() -> int {
-	return size_of(Game_Memory)
+	return size_of(common.Game_Memory)
 }
 
 @(export)
 game_hot_reloaded :: proc(mem: rawptr) {
-	g = (^Game_Memory)(mem)
+	g = (^common.Game_Memory)(mem)
 
 	// Here you can also set your own global variables. A good idea is to make
 	// your global variables into pointers that point to something inside
