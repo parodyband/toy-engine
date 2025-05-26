@@ -35,6 +35,7 @@ args_parser.add_argument("-port",              type=int, default=8000, help="Por
 args_parser.add_argument("-capture",           action="store_true",   help="Build and run with RenderDoc capture (Windows only). Automatically captures a frame and opens in RenderDoc.")
 args_parser.add_argument("-emsdk-path",                               help="Path to where you have emscripten installed. Should be the root directory of your emscripten installation. Not necessary if emscripten is in your PATH. Can be used with both -web and -compile-sokol (the latter needs it when building the Sokol web (WASM) libraries).")
 args_parser.add_argument("-gl",                action="store_true",   help="Force OpenGL Sokol backend. Useful on some older computers, for example old MacBooks that don't support Metal.")
+args_parser.add_argument("-app-name",                                 help="Name for the macOS app bundle (default: ToyGame). Only used when building release on macOS.")
 
 args = args_parser.parse_args()
 
@@ -148,9 +149,28 @@ def main():
 				print("\nStopping server...")
 				server_process.terminate()
 		else:
-			# For regular executables
+			# For regular executables and app bundles
 			print("Starting " + exe_path)
-			# Get the absolute path of the executable
+			
+			# Handle macOS app bundles specially
+			if IS_OSX and exe_path.endswith('.app'):
+				try:
+					print(f"Launching macOS app bundle: {exe_path}")
+					process = subprocess.Popen(
+						["open", exe_path], 
+						stdout=subprocess.DEVNULL,
+						stderr=subprocess.DEVNULL,
+						stdin=subprocess.DEVNULL,
+						start_new_session=True
+					)
+					print(f"App bundle launched with PID: {process.pid}")
+					return
+				except Exception as e:
+					error_msg = f"Error launching app bundle: {e}"
+					print(error_msg)
+					exit(1)
+			
+			# For regular executables
 			exe_abs_path = os.path.abspath(exe_path)
 			exe_dir = os.path.dirname(exe_abs_path)
 			
@@ -207,9 +227,19 @@ def run_with_renderdoc_capture(exe_path):
 	if not os.path.exists(captures_dir):
 		make_dirs(captures_dir)
 	
+	# Handle macOS app bundle case (extract actual executable path)
+	actual_exe_path = exe_path
+	if IS_OSX and exe_path.endswith('.app'):
+		# For app bundles, the actual executable is inside Contents/MacOS/
+		app_name_base = args.app_name if args.app_name else "ToyGame"
+		actual_exe_path = os.path.join(exe_path, "Contents", "MacOS", app_name_base)
+		if not os.path.exists(actual_exe_path):
+			print(f"Error: Could not find executable inside app bundle: {actual_exe_path}")
+			return
+	
 	# Launch the game and get its PID
-	print(f"Launching {exe_path}...")
-	game_dir = os.path.dirname(exe_path)
+	print(f"Launching {actual_exe_path}...")
+	game_dir = os.path.dirname(actual_exe_path)
 	
 	# Use CREATE_NEW_CONSOLE to ensure the game gets its own window
 	creation_flags = 0
@@ -218,7 +248,7 @@ def run_with_renderdoc_capture(exe_path):
 		creation_flags = 0x00000010
 
 	try:
-		game_process = subprocess.Popen([exe_path], cwd=game_dir, creationflags=creation_flags)
+		game_process = subprocess.Popen([actual_exe_path], cwd=game_dir, creationflags=creation_flags)
 	except Exception as e:
 		print(f"Failed to launch game: {e}")
 		return
@@ -671,7 +701,23 @@ def build_release():
 
 	make_dirs(out_dir)
 
-	exe = out_dir + "/game_release" + executable_extension()
+	# On macOS, create a .app bundle
+	if IS_OSX:
+		app_name_base = args.app_name if args.app_name else "ToyGame"
+		app_name = f"{app_name_base}.app"
+		app_bundle_path = os.path.join(out_dir, app_name)
+		contents_path = os.path.join(app_bundle_path, "Contents")
+		macos_path = os.path.join(contents_path, "MacOS")
+		resources_path = os.path.join(contents_path, "Resources")
+		
+		# Create the .app bundle directory structure
+		make_dirs(macos_path)
+		make_dirs(resources_path)
+		
+		# Build the executable (without .bin extension for app bundle)
+		exe = os.path.join(macos_path, app_name_base)
+	else:
+		exe = out_dir + "/game_release" + executable_extension()
 
 	print("Building " + exe + "...")
 
@@ -693,9 +739,54 @@ def build_release():
 	# Make executable on Unix-like systems
 	make_executable(exe)
 	
-	shutil.copytree("assets", out_dir + "/assets")
-
-	return exe
+	if IS_OSX:
+		# Create Info.plist for the macOS app bundle
+		info_plist_path = os.path.join(contents_path, "Info.plist")
+		bundle_identifier = f"com.{app_name_base.lower()}.app"
+		info_plist_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>{app_name_base}</string>
+	<key>CFBundleIdentifier</key>
+	<string>{bundle_identifier}</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>{app_name_base}</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>10.15</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+</dict>
+</plist>'''
+		
+		with open(info_plist_path, 'w') as f:
+			f.write(info_plist_content)
+		
+		# Copy assets to MacOS folder alongside the executable (not Resources)
+		# This way the executable can find them with relative paths
+		if os.path.exists("assets"):
+			assets_dest = os.path.join(macos_path, "assets")
+			shutil.copytree("assets", assets_dest)
+		
+		print(f"Created macOS app bundle: {app_bundle_path}")
+		return app_bundle_path
+	else:
+		# For non-macOS platforms, copy assets as before
+		shutil.copytree("assets", out_dir + "/assets")
+		return exe
 
 def build_web():
 	out_dir = "build/web"
