@@ -1,13 +1,15 @@
 package renderer
 
 import sg "../../lib/sokol/gfx"
-import "../asset/"
-import tra "../transform"
+import ass "../asset/"
+import trans "../transform"
+import inp "../input"
+import sgl "../../lib/sokol/gl"
 
 Draw_Call :: struct {
     index       : int,
-    pipeline    : sg.Pipeline,
-    bind        : sg.Bindings,
+    opaque      : Render_Pass_Props,
+    shadow      : Render_Pass_Props,
     index_count : int,
     skip_render : bool,
     visible     : bool,
@@ -15,9 +17,9 @@ Draw_Call :: struct {
 }
 
 Mesh_Renderer :: struct {
-    mesh      :   asset.Mesh,
-    materials  : []asset.Material,
-    transform : tra.Transform,
+    mesh      :   ass.Mesh,
+    materials : []ass.Material,
+    transform : trans.Transform,
 }
 
 Camera :: struct {
@@ -29,4 +31,9 @@ Camera :: struct {
 
 Bounds :: struct {
     left, right, bottom, top, near, far : f32,
+}
+
+Render_Pass_Props :: struct {
+    pipeline : sg.Pipeline,
+    bindings : sg.Bindings,
 }

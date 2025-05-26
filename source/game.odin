@@ -117,95 +117,19 @@ add_mesh_by_name :: proc(path : string) {
 		},
 	}
 
-	add_draw_call(mesh_renderer)
+	ren.add_mesh_to_render_queue(mesh_renderer, &g.opaque_render_queue, &g.shadow_render_queue)
 
 	defer gltf.unload(glb_data)
 }
 
-add_draw_call :: proc(mesh_renderer : ren.Mesh_Renderer) {
-	// bind draw calls
-	draw_call : ren.Draw_Call
-	
-	// Set the renderer field
-	draw_call.renderer = mesh_renderer
-	
-	// Set the index count
-	draw_call.index_count = mesh_renderer.mesh.index_count
-
-	assert(mesh_renderer.mesh.vertex_count > 0, "Error: Vertex Buffer Count for Mesh is 0")
-	draw_call.bind.vertex_buffers[0] = sg.make_buffer({
-		data = { ptr = raw_data(mesh_renderer.mesh.vertex_buffer_bytes), size = uint(len(mesh_renderer.mesh.vertex_buffer_bytes)) },
-	})
-
-	assert(len(mesh_renderer.mesh.normal_buffer_bytes) > 0, "Error: Normal Buffer Count for Mesh is 0")
-	draw_call.bind.vertex_buffers[1] = sg.make_buffer({
-		data = { ptr = raw_data(mesh_renderer.mesh.normal_buffer_bytes), size = uint(len(mesh_renderer.mesh.normal_buffer_bytes)) },
-	})
-
-	assert(len(mesh_renderer.mesh.uv_buffer_bytes) > 0, "Error: Uv Buffer Count for Mesh is 0")
-	draw_call.bind.vertex_buffers[2] = sg.make_buffer({
-		data = { ptr = raw_data(mesh_renderer.mesh.uv_buffer_bytes),     size = uint(len(mesh_renderer.mesh.uv_buffer_bytes)) },
-	})
-
-	assert(len(mesh_renderer.mesh.index_buffer_bytes) > 0, "Error: Index Buffer Count for Mesh is 0")
-	draw_call.bind.index_buffer = sg.make_buffer({
-		type = .INDEXBUFFER,
-		data = { ptr = raw_data(mesh_renderer.mesh.index_buffer_bytes),  size = uint(len(mesh_renderer.mesh.index_buffer_bytes)) },
-	})
-
-	albedo_texture := mesh_renderer.materials[0].albedo_texture
-
-	draw_call.bind.images[shader.IMG_tex] = sg.make_image({
-		width  = albedo_texture.dimensions.width,
-		height = albedo_texture.dimensions.height,
-		data = {
-			subimage = {
-				0 = {
-					0 = {
-						ptr  = albedo_texture.final_pixels_ptr,
-						size = albedo_texture.final_pixels_size,
-					},
-				},
-			},
-		},
-	})
-
-	draw_call.bind.samplers[shader.SMP_smp] = sg.make_sampler({
-		max_anisotropy = 8,
-		min_filter     = .LINEAR,
-		mag_filter     = .LINEAR,
-		mipmap_filter  = .LINEAR,
-	})
-
-	// shader and pipeline object
-	draw_call.pipeline = sg.make_pipeline({
-		shader = sg.make_shader(shader.texcube_shader_desc(sg.query_backend())),
-		layout = {
-			attrs = {
-				shader.ATTR_texcube_pos       = { format = .FLOAT3 },
-				shader.ATTR_texcube_normal    = { format = .FLOAT3, buffer_index = 1 },
-				shader.ATTR_texcube_texcoord0 = { format = .FLOAT2, buffer_index = 2 },
-			},
-		},
-		index_type = .UINT16,
-		cull_mode = .BACK,
-		face_winding = .CW,
-		depth = {
-			compare = .LESS_EQUAL,
-			write_enabled = true,
-		},
-	})
-
-	append(&g.draw_calls, draw_call)
-}
 
 draw_debug :: proc() {
-	if len(g.debug_draw_calls) == 0 {
+	if len(g.debug_render_queue) == 0 {
 		return
 	}
 
 	// Sort debug calls by depth test mode to minimize pipeline switches
-	slice.sort_by(g.debug_draw_calls[:], proc(a, b: deb.Debug_Draw_Call) -> bool {
+	slice.sort_by(g.debug_render_queue[:], proc(a, b: deb.Debug_Draw_Call) -> bool {
 		a_depth: deb.Depth_Test_Mode
 		b_depth: deb.Depth_Test_Mode
 		
@@ -252,10 +176,10 @@ draw_debug :: proc() {
 	sgl.load_matrix(&view[0][0])
 
 	// Draw all debug primitives
-	for i in 0..<len(g.debug_draw_calls) {
+	for i in 0..<len(g.debug_render_queue) {
 		// Get the depth test mode for this draw call
 		depth_mode: deb.Depth_Test_Mode
-		switch data in g.debug_draw_calls[i].data {
+		switch data in g.debug_render_queue[i].data {
 			case deb.Line_Segment_Data:
 				depth_mode = data.depth_test
 			case deb.Wire_Sphere_Data:
@@ -271,7 +195,7 @@ draw_debug :: proc() {
 		}
 		
 		// Draw the primitive
-		switch draw_data in g.debug_draw_calls[i].data {
+		switch draw_data in g.debug_render_queue[i].data {
 			case deb.Line_Segment_Data:
 				sgl.c4f(draw_data.color[0], draw_data.color[1], draw_data.color[2], draw_data.color[3])
 				sgl.begin_lines()
@@ -292,7 +216,7 @@ draw_debug :: proc() {
 	}
 
 	//clear debug draw calls
-	clear(&g.debug_draw_calls)
+	clear(&g.debug_render_queue)
 
 	sgl.draw()
 }
@@ -308,7 +232,7 @@ game_frame :: proc() {
 		g.toggle_debug = !g.toggle_debug
 	}
 
-	// light_shadow_pass_action := sg.Pass_Action {
+	// shadow_pass_action := sg.Pass_Action {
 	// 	colors = {
 	// 		0 = { load_action = .CLEAR, clear_value = {1,1,1,1} },
 	// 	},
@@ -325,6 +249,8 @@ game_frame :: proc() {
 			0 = { load_action = .DONTCARE },
 		},
 	}
+
+	
 	
 	point_light_params       : shader.Fs_Point_Light
 	directional_light_params : shader.Fs_Directional_Light
@@ -342,7 +268,7 @@ game_frame :: proc() {
 				point_light_params.intensity[i].x  = point_light.intensity
 				point_light_params.range[i].x      = linalg.max_triple(point_range.x, point_range.y, point_range.z)
 
-				deb.draw_wire_sphere_alpha(point_light.transform, 1, point_light.color.rgb, .8, &g.debug_draw_calls, .Front, true)
+				deb.draw_wire_sphere_alpha(point_light.transform, 1, point_light.color.rgb, .8, &g.debug_render_queue, .Front, true)
 			case ren.Directional_Light:
 				directional_light := value
 
@@ -353,8 +279,8 @@ game_frame :: proc() {
 				directional_light_params.color         = directional_light.color
 				directional_light_params.intensity     = directional_light.intensity
 
-				deb.draw_wire_sphere(directional_light.transform, .25, directional_light.color, &g.debug_draw_calls, .Front, true)
-				deb.draw_transform_axes(directional_light.transform, 1, &g.debug_draw_calls)
+				deb.draw_wire_sphere(directional_light.transform, .25, directional_light.color, &g.debug_render_queue, .Front, true)
+				deb.draw_transform_axes(directional_light.transform, 1, &g.debug_render_queue)
 		}
 	}
 
@@ -362,18 +288,18 @@ game_frame :: proc() {
 	{
 		sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
 
-		for i in 0..<len(g.draw_calls) {
+		for i in 0..<len(g.opaque_render_queue) {
 			vs_params := shader.Vs_Params {
 				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
-				model = trans.compute_model_matrix(g.draw_calls[i].renderer.transform),
-				view_pos = g.main_camera.position,
+				model           = trans.compute_model_matrix(g.opaque_render_queue[i].renderer.transform),
+				view_pos        = g.main_camera.position,
 			}
-			sg.apply_pipeline(g.draw_calls[i].pipeline)
-			sg.apply_bindings(g.draw_calls[i].bind)
+			sg.apply_pipeline(g.opaque_render_queue[i].opaque.pipeline)
+			sg.apply_bindings(g.opaque_render_queue[i].opaque.bindings)
 			sg.apply_uniforms(shader.UB_vs_params,            { ptr = &vs_params,                size = size_of(vs_params) })
 			sg.apply_uniforms(shader.UB_fs_point_light,       { ptr = &point_light_params,       size = size_of(point_light_params) })
 			sg.apply_uniforms(shader.UB_fs_directional_light, { ptr = &directional_light_params, size = size_of(directional_light_params) })
-			sg.draw(0, i32(g.draw_calls[i].index_count), 1)
+			sg.draw(0, i32(g.opaque_render_queue[i].index_count), 1)
 		}
 
 		sg.end_pass()
