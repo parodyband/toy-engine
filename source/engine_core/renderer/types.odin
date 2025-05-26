@@ -3,8 +3,6 @@ package renderer
 import sg "../../lib/sokol/gfx"
 import ass "../asset/"
 import trans "../transform"
-import inp "../input"
-import sgl "../../lib/sokol/gl"
 
 Draw_Call :: struct {
     index       : int,

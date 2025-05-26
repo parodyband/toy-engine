@@ -1,5 +1,4 @@
 package debug
-import ren "../renderer"
 import trans "../transform"
 
 Vec3 :: [3]f32

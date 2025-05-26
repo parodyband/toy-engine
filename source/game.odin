@@ -69,7 +69,7 @@ game_init :: proc() {
 		intensity = 3,
 		transform = {
 			position = {-5,5,-5},
-			scale    = {10,10,10}
+			scale    = {10,10,10},
 		},
 	})
 	// append(&g.lights, ren.Point_Light{
@@ -85,7 +85,7 @@ game_init :: proc() {
 		transform = {
 			position = {0 ,15, 0},
 			rotation = {60,30, 0},
-			scale    = { 1, 1, 1}
+			scale    = { 1, 1, 1},
 		},
 	})
 

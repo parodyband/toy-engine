@@ -9,10 +9,10 @@ add_mesh_to_render_queue :: proc(
 ) {
 	// bind draw calls
 	opaque_draw_call := create_opaque_drawcall(mesh_renderer)
-	shadow_draw_call := create_shadow_drawcall(mesh_renderer)
+	//shadow_draw_call := create_shadow_drawcall(mesh_renderer)
 
 	append(opaque_render_queue, opaque_draw_call)
-	append(shadow_render_queue, shadow_draw_call)
+	//append(shadow_render_queue, shadow_draw_call)
 }
 
 @(private="file")

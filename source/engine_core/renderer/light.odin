@@ -1,6 +1,5 @@
 package renderer
 import trans "../transform"
-import sg "../../lib/sokol/gfx"
 
 Light :: union {
     Point_Light,

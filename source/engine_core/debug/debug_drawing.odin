@@ -1,6 +1,5 @@
 package debug
 
-import ren "../renderer"
 import sgl "../../lib/sokol/gl"
 import sg "../../lib/sokol/gfx"
 import slog "../../lib/sokol/log"
@@ -223,7 +222,7 @@ draw_transform_axes :: proc(transform: trans.Transform, axis_length: f32, debug_
     z_axis := [3]f32{rot_combined[2][0], rot_combined[2][1], rot_combined[2][2]} * axis_length
     
     origin := transform.position
-    cone_length := axis_length * 0.2
+    // cone_length := axis_length * 0.2
     cone_radius := axis_length * 0.05
     
     // Draw X axis (Red)
