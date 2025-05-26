@@ -121,7 +121,7 @@ bind_shadow_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Dra
 		},
 		index_type = .UINT16,
 		cull_mode = .FRONT,
-		face_winding = .CW,
+		face_winding = .CCW,
 		sample_count = 1,
 		depth = {
 			pixel_format = .DEPTH,
