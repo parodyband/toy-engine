@@ -270,16 +270,23 @@ game_frame :: proc() {
 		g.toggle_debug = !g.toggle_debug
 	}
 
-	g.draw_calls[0].renderer.transform.position = {0,10,0}
+	// light_shadow_pass_action := sg.Pass_Action {
+	// 	colors = {
+	// 		0 = { load_action = .CLEAR, clear_value = {1,1,1,1} },
+	// 	},
+	// }
 
-	// Opaque Pass
-	pass_action := sg.Pass_Action {
+	opaque_pass_action := sg.Pass_Action {
 		colors = {
-			0 = { load_action = .CLEAR, clear_value = { 0.2, 0.2, 0.2, 1 } },
+			0 = { load_action = .CLEAR, clear_value = {.2,.2,.2,1} },
 		},
 	}
 
-	sg.begin_pass({ action = pass_action, swapchain = sglue.swapchain() })
+	debug_pass_action := sg.Pass_Action {
+		colors = {
+			0 = { load_action = .DONTCARE },
+		},
+	}
 
 	light_params : shader.Fs_Spot_Light
 	for i in 0..<len(g.lights) {
@@ -291,6 +298,8 @@ game_frame :: proc() {
 			deb.draw_wire_sphere(g.lights[i].transform.position, .5, g.lights[i].color, &g.debug_draw_calls)
 		}
 	}
+
+	sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
 
 	for i in 0..<len(g.draw_calls) {
 		vs_params := shader.Vs_Params {
@@ -305,11 +314,14 @@ game_frame :: proc() {
 		sg.draw(0, i32(g.draw_calls[i].index_count), 1)
 	}
 
+	sg.end_pass()
+
 	if g.toggle_debug {
+		sg.begin_pass({ action = debug_pass_action, swapchain = sglue.swapchain() })
 		draw_debug()
+		sg.end_pass()
 	}
 
-	sg.end_pass()
 	sg.commit()
 
 	// Clear input state changes for next frame

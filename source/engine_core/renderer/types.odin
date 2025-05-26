@@ -31,3 +31,7 @@ Camera :: struct {
     rotation : [3]f32,
     target_rotation : [3]f32,
 }
+
+Bounds :: struct {
+    left, right, bottom, top, near, far : f32,
+}
