@@ -334,12 +334,12 @@ game_frame :: proc() {
 		if found {
 			// Draw the orthographic frustum bounds
 			bounds := ren.Bounds {
-				left   = -50,
-				right  =  50,
-				bottom = -50,
-				top    =  50,
+				left   = -20,
+				right  =  20,
+				bottom = -20,
+				top    =  20,
 				near   =  0.1,
-				far    =  200,
+				far    =  20,
 			}
 			
 			deb.draw_ortho_frustum(

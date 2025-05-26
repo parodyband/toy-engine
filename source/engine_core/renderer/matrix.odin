@@ -31,7 +31,7 @@ compute_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, bounds : 
         bounds.top,
         bounds.near,
         bounds.far,
-        false
+        false,
     )
     // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
     inv_rot_pitch := linalg.matrix4_rotate_f32(-rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})

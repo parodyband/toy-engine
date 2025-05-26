@@ -11,6 +11,7 @@ add_mesh_to_render_queue :: proc(
 	
 	bind_opaque_render_props(mesh_renderer, &draw_call)
 	bind_shadow_render_props(mesh_renderer, &draw_call)
+
 	append(render_queue, draw_call)
 }
 
@@ -121,14 +122,14 @@ bind_shadow_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Dra
 		},
 		index_type = .UINT16,
 		cull_mode = .FRONT,
-		face_winding = .CCW,
+		face_winding = .CW,
 		sample_count = 1,
 		depth = {
 			pixel_format = .DEPTH,
-	                write_enabled = true,
-	                compare = .LESS_EQUAL,
-	                bias = 0.5,
-	                bias_slope_scale = 1.0,
+			write_enabled = true,
+			compare = .LESS_EQUAL,
+			bias = 0.5,
+			bias_slope_scale = 1.0,
 		},
 		label = "shadow-pipeline",
 	})
