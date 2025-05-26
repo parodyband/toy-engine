@@ -7,7 +7,7 @@ import sapp "../../lib/sokol/app"
 Mat4 :: matrix[4,4]f32
 
 compute_view_projection :: proc(position : [3]f32, rotation : [3]f32) -> Mat4 {
-    proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 1000.0)
+    proj := linalg.matrix4_perspective(60.0 * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 1000.0, false)
     
     // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
     inv_rot_pitch := linalg.matrix4_rotate_f32(-rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
@@ -20,8 +20,7 @@ compute_view_projection :: proc(position : [3]f32, rotation : [3]f32) -> Mat4 {
     // View matrix V = R_inverse * T_inverse
     view_rotation_inv := inv_rot_roll * inv_rot_pitch * inv_rot_yaw
     view := view_rotation_inv * trans
-    flip_z := linalg.matrix4_scale_f32({1.0, 1.0, -1.0})
-    return proj * flip_z * view
+    return proj * view
 }
 
 compute_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, bounds : Bounds) -> Mat4 {
@@ -32,7 +31,7 @@ compute_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, bounds : 
         bounds.top,
         bounds.near,
         bounds.far,
-        true,
+        false
     )
     // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
     inv_rot_pitch := linalg.matrix4_rotate_f32(-rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
@@ -44,6 +43,5 @@ compute_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, bounds : 
 
     view_rotation_inv := inv_rot_roll * inv_rot_pitch * inv_rot_yaw
     view := view_rotation_inv * trans
-
     return proj * view
 }
