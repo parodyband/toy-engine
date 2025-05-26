@@ -71,7 +71,6 @@ game_init :: proc() {
 		wrap_v         = .CLAMP_TO_EDGE,
 		min_filter     = .LINEAR,
 		mag_filter     = .LINEAR,
-		mipmap_filter  = .LINEAR,
 		compare        = .LESS,
 		label          = "shadow-sampler",
 	})
@@ -270,21 +269,23 @@ game_frame :: proc() {
 		},
 	}
 
+	directional_light : ren.Directional_Light
+	direct_light_found := false
+	// Get Directional Light
+	for i in 0..<len(g.lights) {
+		#partial switch value in g.lights[i] {
+			case ren.Directional_Light:
+				directional_light = value
+				direct_light_found = true
+		}
+	}
+
+		
+
 	// Directional Shadow Pass
 	{
-		directional_light : ren.Directional_Light
-		found := false
-		// Get Directional Light
-		for i in 0..<len(g.lights) {
-			#partial switch value in g.lights[i] {
-				case ren.Directional_Light:
-					directional_light = value
-					found = true
-			}
-		}
 
-		if !found do return
-
+		if !direct_light_found do return
 		// NOTE: For an off-screen shadow pass we must NOT provide a swapchain.
 		// Providing both swapchain and attachments causes the backend to pick the swapchain,
 		// so the depth values would never be written into our shadow_map image.
@@ -292,13 +293,7 @@ game_frame :: proc() {
 
 		// Use centered orthographic projection for easier reasoning about coverage
 		// The shadow volume extends half_depth units in front and behind the light position
-		view_projection := ren.compute_centered_ortho_projection(
-			directional_light.transform.position,
-			directional_light.transform.rotation,
-			50.0,  // width of shadow coverage
-			50.0,  // height of shadow coverage  
-			25.0,  // half_depth - extends 25 units forward and backward from light position
-		)
+		view_projection := ren.get_light_view_proj(directional_light)
 
 		// Store the light view projection for use in main pass
 		g.light_view_projection = view_projection
@@ -311,8 +306,6 @@ game_frame :: proc() {
 				view_projection = view_projection,
 				model           = model,
 			}
-
-			
 			
 			sg.apply_pipeline(g.render_queue[i].shadow.pipeline)
 			sg.apply_bindings(g.render_queue[i].shadow.bindings)
@@ -350,8 +343,6 @@ game_frame :: proc() {
 
 				deb.draw_wire_sphere_alpha(point_light.transform, 1, point_light.color.rgb, .8, &g.debug_render_queue, .Front, true)
 			case ren.Directional_Light:
-				directional_light := value
-
 				forward := trans.get_forward_direction(directional_light.transform) 
 
 				directional_light_params.position.xyz  = directional_light.transform.position
@@ -366,13 +357,14 @@ game_frame :: proc() {
 
 	//Opaque Pass
 	{
-		
 		sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
 		for i in 0..<len(g.render_queue) {
+			model := trans.compute_model_matrix(g.render_queue[i].renderer.transform)
 			vs_params := shader.Vs_Params {
-				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
-				model           = trans.compute_model_matrix(g.render_queue[i].renderer.transform),
-				view_pos        = g.main_camera.position,
+				view_projection  = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
+				model            = model,
+				view_pos         = g.main_camera.position,
+				direct_light_mvp = ren.get_light_view_proj(directional_light) * model,
 			}
 			sg.apply_pipeline(g.render_queue[i].opaque.pipeline)
 			sg.apply_bindings(g.render_queue[i].opaque.bindings)

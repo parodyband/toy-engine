@@ -10,13 +10,13 @@ add_mesh_to_render_queue :: proc(
 	draw_call : Draw_Call
 	
 	bind_shadow_render_props(mesh_renderer, &draw_call)	
-	bind_opaque_render_props(mesh_renderer, &draw_call)
+	bind_opaque_render_props(mesh_renderer, shadow_resources, &draw_call)
 
 	append(render_queue, draw_call)
 }
 
 @(private="file")
-bind_opaque_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Draw_Call){
+bind_opaque_render_props :: proc(mesh_renderer : Mesh_Renderer, shadow_resources : ^Shadow_Pass_Resources, draw_call : ^Draw_Call){
 	// Set the renderer field
 	draw_call.renderer = mesh_renderer
 	
@@ -68,7 +68,11 @@ bind_opaque_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Dra
 		mipmap_filter  = .LINEAR,
 	})
 
-	// shader and pipeline object
+	// Bind Shadows
+	draw_call.opaque.bindings.images[shader.IMG_shadow_tex]   = shadow_resources.shadow_map
+	draw_call.opaque.bindings.samplers[shader.SMP_shadow_smp] = shadow_resources.shadow_sampler
+
+	// Shader and pipeline object
 	draw_call.opaque.pipeline = sg.make_pipeline({
 		shader = sg.make_shader(shader.texcube_shader_desc(sg.query_backend())),
 		layout = {
