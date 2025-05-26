@@ -169,17 +169,36 @@ def main():
 				# Run the executable from its own directory so it can find relative files like dylibs
 				print(f"Launching: {exe_abs_path}")
 				print(f"Working directory: {exe_dir}")
-				process = subprocess.Popen([exe_abs_path], cwd=exe_dir)
+				
+				# On Unix systems, properly detach the process from the parent
+				# This prevents VS Code from killing it when the task completes
+				if IS_LINUX or IS_OSX:
+					process = subprocess.Popen(
+						[exe_abs_path], 
+						cwd=exe_dir,
+						stdout=subprocess.DEVNULL,
+						stderr=subprocess.DEVNULL,
+						stdin=subprocess.DEVNULL,
+						start_new_session=True  # Creates a new process group
+					)
+				else:
+					# Windows
+					process = subprocess.Popen([exe_abs_path], cwd=exe_dir)
+					
 				print(f"Game started with PID: {process.pid}")
+				
 			except FileNotFoundError as e:
-				print(f"Error: Could not find executable: {e}")
+				error_msg = f"Error: Could not find executable: {e}"
+				print(error_msg)
 				exit(1)
 			except PermissionError as e:
-				print(f"Error: Permission denied when trying to run executable: {e}")
+				error_msg = f"Error: Permission denied when trying to run executable: {e}"
+				print(error_msg)
 				print("Make sure the file has execute permissions.")
 				exit(1)
 			except Exception as e:
-				print(f"Error starting executable: {e}")
+				error_msg = f"Error starting executable: {e}"
+				print(error_msg)
 				exit(1)
 
 def run_with_renderdoc_capture(exe_path):
