@@ -1,6 +1,7 @@
 package game
 
 import "core:math/linalg"
+import "core:slice"
 
 import sapp  "lib/sokol/app"
 import sg    "lib/sokol/gfx"
@@ -13,6 +14,8 @@ import ass "engine_core/asset"
 import ren "engine_core/renderer"
 import deb "engine_core/debug"
 import inp "engine_core/input"
+
+import trans "engine_core/transform"
 
 import "gameplay"
 import "shader"
@@ -54,27 +57,38 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
-	append(&g.lights, ren.Point_Light{
-		color = {1,1,1,1},
-		intensity = .5,
-		transform = {
-			position = {0,15,0},
-		},
-	})
+	// append(&g.lights, ren.Point_Light{
+	// 	color = {1,1,1,1},
+	// 	intensity = .5,
+	// 	transform = {
+	// 		position = {0,15,0},
+	// 	},
+	// })
 	append(&g.lights, ren.Point_Light{
 		color = {0,1,1,1},
-		intensity = .5,
+		intensity = 3,
 		transform = {
-			position = {-15,10,-15},
+			position = {-5,5,-5},
+			scale    = {10,10,10}
 		},
 	})
-	append(&g.lights, ren.Point_Light{
-		color = {1,1,0,1},
-		intensity = .5,
+	// append(&g.lights, ren.Point_Light{
+	// 	color = {1,1,0,1},
+	// 	intensity = .5,
+	// 	transform = {
+	// 		position = {15,10,15},
+	// 	},
+	// })
+	append(&g.lights, ren.Directional_Light{
+		color = {1,1,1,1},
+		intensity = .8,
 		transform = {
-			position = {15,10,15},
+			position = {0 ,15, 0},
+			rotation = {60,30, 0},
+			scale    = { 1, 1, 1}
 		},
 	})
+
 
 	deb.init(&g.debug_pipelines)
 
@@ -190,10 +204,30 @@ draw_debug :: proc() {
 		return
 	}
 
+	// Sort debug calls by depth test mode to minimize pipeline switches
+	slice.sort_by(g.debug_draw_calls[:], proc(a, b: deb.Debug_Draw_Call) -> bool {
+		a_depth: deb.Depth_Test_Mode
+		b_depth: deb.Depth_Test_Mode
+		
+		switch data in a.data {
+			case deb.Line_Segment_Data: a_depth = data.depth_test
+			case deb.Wire_Sphere_Data:  a_depth = data.depth_test
+			case deb.Wire_Cube_Data:    a_depth = data.depth_test
+		}
+		
+		switch data in b.data {
+			case deb.Line_Segment_Data: b_depth = data.depth_test
+			case deb.Wire_Sphere_Data:  b_depth = data.depth_test
+			case deb.Wire_Cube_Data:    b_depth = data.depth_test
+		}
+		
+		return int(a_depth) < int(b_depth)
+	})
+
 	// Setup sokol-gl for debug drawing with proper depth testing
 	sgl.defaults()
 	
-	// Sort debug calls by depth test mode to minimize pipeline switches
+	// Start with the first depth mode
 	current_depth_mode := deb.Depth_Test_Mode.Front
 	sgl.load_pipeline(g.debug_pipelines[current_depth_mode])
 	
@@ -246,7 +280,11 @@ draw_debug :: proc() {
 				sgl.end()
 				
 			case deb.Wire_Sphere_Data:
-				deb.draw_wire_sphere_immediate(draw_data.center, draw_data.radius, draw_data.color)
+				if draw_data.simple_mode {
+					deb.draw_wire_sphere_simple_immediate(draw_data.transform, draw_data.radius, draw_data.color)
+				} else {
+					deb.draw_wire_sphere_immediate(draw_data.transform, draw_data.radius, draw_data.color)
+				}
 				
 			case deb.Wire_Cube_Data:
 				deb.draw_wire_cube_immediate(draw_data.transform, draw_data.color)
@@ -266,7 +304,7 @@ game_frame :: proc() {
 
 	gameplay.on_update(dt, t, g)
 
-	if inp.GetKeyDown(.F1) {
+	if inp.get_key_down(.F1) {
 		g.toggle_debug = !g.toggle_debug
 	}
 
@@ -287,34 +325,59 @@ game_frame :: proc() {
 			0 = { load_action = .DONTCARE },
 		},
 	}
+	
+	point_light_params       : shader.Fs_Point_Light
+	directional_light_params : shader.Fs_Directional_Light
 
-	light_params : shader.Fs_Spot_Light
 	for i in 0..<len(g.lights) {
-		if i < len(light_params.color) {
-			light_params.position[i].xyz = g.lights[i].transform.position
-			light_params.color[i]        = g.lights[i].color
-			light_params.intensity[i].x  = g.lights[i].intensity
+		if i > len(point_light_params.color) do continue
+		
+		switch value in g.lights[i] {
+			case ren.Point_Light:
+				point_light := value
+				point_range := point_light.transform.scale
+				
+				point_light_params.position[i].xyz = point_light.transform.position
+				point_light_params.color[i]        = point_light.color
+				point_light_params.intensity[i].x  = point_light.intensity
+				point_light_params.range[i].x      = linalg.max_triple(point_range.x, point_range.y, point_range.z)
 
-			deb.draw_wire_sphere(g.lights[i].transform.position, .5, g.lights[i].color, &g.debug_draw_calls)
+				deb.draw_wire_sphere_alpha(point_light.transform, 1, point_light.color.rgb, .8, &g.debug_draw_calls, .Front, true)
+			case ren.Directional_Light:
+				directional_light := value
+
+				forward := trans.get_forward_direction(directional_light.transform) 
+
+				directional_light_params.position.xyz  = directional_light.transform.position
+				directional_light_params.direction.xyz = forward
+				directional_light_params.color         = directional_light.color
+				directional_light_params.intensity     = directional_light.intensity
+
+				deb.draw_wire_sphere(directional_light.transform, .25, directional_light.color, &g.debug_draw_calls, .Front, true)
+				deb.draw_transform_axes(directional_light.transform, 1, &g.debug_draw_calls)
 		}
 	}
 
-	sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
+	//Opaque Pass
+	{
+		sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
 
-	for i in 0..<len(g.draw_calls) {
-		vs_params := shader.Vs_Params {
-			view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
-			model = ren.compute_model_matrix(g.draw_calls[i].renderer.transform),
-			view_pos = g.main_camera.position,
+		for i in 0..<len(g.draw_calls) {
+			vs_params := shader.Vs_Params {
+				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
+				model = trans.compute_model_matrix(g.draw_calls[i].renderer.transform),
+				view_pos = g.main_camera.position,
+			}
+			sg.apply_pipeline(g.draw_calls[i].pipeline)
+			sg.apply_bindings(g.draw_calls[i].bind)
+			sg.apply_uniforms(shader.UB_vs_params,            { ptr = &vs_params,                size = size_of(vs_params) })
+			sg.apply_uniforms(shader.UB_fs_point_light,       { ptr = &point_light_params,       size = size_of(point_light_params) })
+			sg.apply_uniforms(shader.UB_fs_directional_light, { ptr = &directional_light_params, size = size_of(directional_light_params) })
+			sg.draw(0, i32(g.draw_calls[i].index_count), 1)
 		}
-		sg.apply_pipeline(g.draw_calls[i].pipeline)
-		sg.apply_bindings(g.draw_calls[i].bind)
-		sg.apply_uniforms(shader.UB_vs_params,     { ptr = &vs_params, size = size_of(vs_params) })
-		sg.apply_uniforms(shader.UB_fs_spot_light, { ptr = &light_params, size = size_of(light_params) })
-		sg.draw(0, i32(g.draw_calls[i].index_count), 1)
-	}
 
-	sg.end_pass()
+		sg.end_pass()
+	}
 
 	if g.toggle_debug {
 		sg.begin_pass({ action = debug_pass_action, swapchain = sglue.swapchain() })

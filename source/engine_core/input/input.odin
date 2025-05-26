@@ -20,17 +20,16 @@ init_input_state :: proc(state: ^Input_State) {
     state.mouse_locked = false
 }
 
-// Unity-like input helper functions
 // GetKeyDown returns true only on the frame when the key is first pressed
 // Example: if GetKeyDown(.SPACE) { jump() }
-GetKeyDown :: proc(key: sapp.Keycode) -> bool {
+get_key_down :: proc(key: sapp.Keycode) -> bool {
     if input_state == nil do return false
     return input_state.keys_just_pressed[key] or_else false
 }
 
 // GetKeyUp returns true only on the frame when the key is released
 // Example: if GetKeyUp(.LEFT_SHIFT) { stop_running() }
-GetKeyUp :: proc(key: sapp.Keycode) -> bool {
+get_key_up :: proc(key: sapp.Keycode) -> bool {
     if input_state == nil do return false
     return input_state.keys_just_released[key] or_else false
 }

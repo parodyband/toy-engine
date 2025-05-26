@@ -2,6 +2,7 @@ package renderer
 
 import sg "../../lib/sokol/gfx"
 import "../asset/"
+import tra "../transform"
 
 Draw_Call :: struct {
     index       : int,
@@ -16,13 +17,7 @@ Draw_Call :: struct {
 Mesh_Renderer :: struct {
     mesh      :   asset.Mesh,
     materials  : []asset.Material,
-    transform : Transform,
-}
-
-Transform :: struct {
-    position : [3]f32,
-    rotation : [3]f32,
-    scale    : [3]f32,
+    transform : tra.Transform,
 }
 
 Camera :: struct {

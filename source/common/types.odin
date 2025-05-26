@@ -9,7 +9,7 @@ Game_Memory :: struct {
 	main_camera       : ren.Camera,
 	game_input        : inp.Input_State,
 	draw_calls        : [dynamic]ren.Draw_Call,
-	lights            : [dynamic]ren.Point_Light,
+	lights            : [dynamic]ren.Light,
 	debug_draw_calls  : [dynamic]deb.Debug_Draw_Call,
 	debug_pipelines   : [deb.Depth_Test_Mode]sgl.Pipeline,
 	toggle_debug      : bool,

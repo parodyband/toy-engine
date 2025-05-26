@@ -1,5 +1,6 @@
 package debug
 import ren "../renderer"
+import trans "../transform"
 
 Vec3 :: [3]f32
 
@@ -17,14 +18,15 @@ Debug_Draw_Call :: struct {
 }
 
 Wire_Sphere_Data :: struct {
-    center: [3]f32,
+    transform: trans.Transform,
     radius: f32,
     color: [4]f32,
     depth_test: Depth_Test_Mode,
+    simple_mode: bool,  // If true, use simple 3-circle rendering
 }
 
 Wire_Cube_Data :: struct {
-    transform: ren.Transform,
+    transform: trans.Transform,
     color: [4]f32,
     depth_test: Depth_Test_Mode,
 }

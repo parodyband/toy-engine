@@ -37,18 +37,36 @@ void main() {
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler smp;
 
-layout(binding = 1) uniform fs_spot_light {
-    vec4  position[MAX_POINT_LIGHTS];
-    vec4  color[MAX_POINT_LIGHTS];
-    vec4  intensity[MAX_POINT_LIGHTS];
-} spot_lights;
+layout(binding = 1) uniform fs_point_light {
+    vec4 position[MAX_POINT_LIGHTS];
+    vec4 color[MAX_POINT_LIGHTS];
+    vec4 range[MAX_POINT_LIGHTS];
+    vec4 intensity[MAX_POINT_LIGHTS];
+} point_lights;
+
+layout(binding = 2) uniform fs_directional_light {
+    vec4 position;
+    vec4 direction;
+    vec4 color;
+    vec4 intensity;
+} directional_light;
 
 point_light_t get_point_light(int index) {
     int i = index;
     return point_light_t(
-        spot_lights.position[i],
-        spot_lights.color[i],
-        spot_lights.intensity[i].x
+        point_lights.position[i].xyz,
+        point_lights.color[i].rgb,
+        point_lights.range[i].x,
+        point_lights.intensity[i].x
+    );
+}
+
+directional_light_t get_directional_light() {
+    return directional_light_t (
+        directional_light.position.xyz,
+        directional_light.direction.xyz,
+        directional_light.color.rgb,
+        directional_light.intensity.x
     );
 }
 
@@ -64,9 +82,13 @@ void main() {
 
     vec4 lighting = vec4(.1,.1,.2,1);
 
+    // Point Lights
     for(int i=0; i < MAX_POINT_LIGHTS; i++) {
         lighting += vec4(calculate_point_light(get_point_light(i), frag_pos.xyz, normal),1);
     }
+
+    // Directional Lights
+    lighting += vec4(calculate_directional_light(get_directional_light(), normal),1);
 
     frag_color = texture(sampler2D(tex, smp), uv) * lighting;
 }

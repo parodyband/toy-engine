@@ -2,8 +2,10 @@ package debug
 
 import ren "../renderer"
 import sgl "../../lib/sokol/gl"
+import sg "../../lib/sokol/gfx"
 import slog "../../lib/sokol/log"
 import linalg "core:math/linalg"
+import trans "../transform"
 
 
 init :: proc(pipeline: ^[Depth_Test_Mode]sgl.Pipeline) {
@@ -12,35 +14,132 @@ init :: proc(pipeline: ^[Depth_Test_Mode]sgl.Pipeline) {
 		logger = { func = slog.func },
 	})
 
+	// Create pipeline with alpha blending enabled for depth testing
 	pipeline[.Front] = sgl.make_pipeline({
 		depth = {
 			write_enabled = true,
 			compare = .LESS_EQUAL,
 		},
 		cull_mode = .NONE,
+		colors = {
+			0 = {
+				blend = {
+					enabled = true,
+					src_factor_rgb = sg.Blend_Factor.SRC_ALPHA,
+					dst_factor_rgb = sg.Blend_Factor.ONE_MINUS_SRC_ALPHA,
+					op_rgb = sg.Blend_Op.ADD,
+					src_factor_alpha = sg.Blend_Factor.ONE,
+					dst_factor_alpha = sg.Blend_Factor.ONE_MINUS_SRC_ALPHA,
+					op_alpha = sg.Blend_Op.ADD,
+				},
+				write_mask = sg.Color_Mask.RGBA,
+			},
+		},
 	})
 	
+	// Create pipeline with alpha blending enabled for no depth testing
 	pipeline[.Off] = sgl.make_pipeline({
 		depth = {
 			write_enabled = false,
 			compare = .ALWAYS,
 		},
 		cull_mode = .NONE,
+		colors = {
+			0 = {
+				blend = {
+					enabled = true,
+					src_factor_rgb = sg.Blend_Factor.SRC_ALPHA,
+					dst_factor_rgb = sg.Blend_Factor.ONE_MINUS_SRC_ALPHA,
+					op_rgb = sg.Blend_Op.ADD,
+					src_factor_alpha = sg.Blend_Factor.ONE,
+					dst_factor_alpha = sg.Blend_Factor.ONE_MINUS_SRC_ALPHA,
+					op_alpha = sg.Blend_Op.ADD,
+				},
+				write_mask = sg.Color_Mask.RGBA,
+			},
+		},
 	})
 }
 
-draw_wire_sphere :: proc(center: [3]f32, radius: f32, color: [4]f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
+draw_wire_sphere :: proc(transform: trans.Transform, radius: f32, color: [4]f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front, simple_mode: bool = false) {
     append(debug_data, Debug_Draw_Call{
         data = Wire_Sphere_Data{
-            center = center,
+            transform = transform,
             radius = radius,
             color = color,
             depth_test = depth_test,
+            simple_mode = simple_mode,
         },
     })
 }
 
-draw_wire_cube :: proc(transform : ren.Transform, color: [4]f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
+// Convenience function for drawing a wire sphere with opacity
+draw_wire_sphere_alpha :: proc(transform: trans.Transform, radius: f32, color: [3]f32, alpha: f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front, simple_mode: bool = false) {
+    full_color := [4]f32{color[0], color[1], color[2], alpha}
+    draw_wire_sphere(transform, radius, full_color, debug_data, depth_test, simple_mode)
+}
+
+// Low-detail sphere for less visual noise
+draw_wire_sphere_simple :: proc(transform: trans.Transform, radius: f32, color: [4]f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
+    // Draw just 3 orthogonal circles instead of full wireframe
+    
+    // XY plane circle (around Z axis)
+    segments :: 16
+    for i in 0..<segments {
+        angle1 := f32(i) * 2.0 * linalg.PI / f32(segments)
+        angle2 := f32((i + 1) % segments) * 2.0 * linalg.PI / f32(segments)
+        
+        p1 := transform.position + [3]f32{
+            radius * linalg.cos(angle1),
+            radius * linalg.sin(angle1),
+            0,
+        }
+        p2 := transform.position + [3]f32{
+            radius * linalg.cos(angle2),
+            radius * linalg.sin(angle2),
+            0,
+        }
+        draw_line_segment(p1, p2, color, debug_data, depth_test)
+    }
+    
+    // XZ plane circle (around Y axis)
+    for i in 0..<segments {
+        angle1 := f32(i) * 2.0 * linalg.PI / f32(segments)
+        angle2 := f32((i + 1) % segments) * 2.0 * linalg.PI / f32(segments)
+        
+        p1 := transform.position + [3]f32{
+            radius * linalg.cos(angle1),
+            0,
+            radius * linalg.sin(angle1),
+        }
+        p2 := transform.position + [3]f32{
+            radius * linalg.cos(angle2),
+            0,
+            radius * linalg.sin(angle2),
+        }
+        draw_line_segment(p1, p2, color, debug_data, depth_test)
+    }
+    
+    // YZ plane circle (around X axis)
+    for i in 0..<segments {
+        angle1 := f32(i) * 2.0 * linalg.PI / f32(segments)
+        angle2 := f32((i + 1) % segments) * 2.0 * linalg.PI / f32(segments)
+        
+        p1 := transform.position + [3]f32{
+            0,
+            radius * linalg.cos(angle1),
+            radius * linalg.sin(angle1),
+        }
+        p2 := transform.position + [3]f32{
+            0,
+            radius * linalg.cos(angle2),
+            radius * linalg.sin(angle2),
+        }
+        draw_line_segment(p1, p2, color, debug_data, depth_test)
+    }
+}
+
+draw_wire_cube :: proc(transform : trans.Transform, color: [4]f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
     append(debug_data, Debug_Draw_Call{
         data = Wire_Cube_Data{
             transform = transform,
@@ -48,6 +147,12 @@ draw_wire_cube :: proc(transform : ren.Transform, color: [4]f32, debug_data : ^[
             depth_test = depth_test,
         },
     })
+}
+
+// Convenience function for drawing a wire cube with opacity
+draw_wire_cube_alpha :: proc(transform: trans.Transform, color: [3]f32, alpha: f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
+    full_color := [4]f32{color[0], color[1], color[2], alpha}
+    draw_wire_cube(transform, full_color, debug_data, depth_test)
 }
 
 draw_line_segment :: proc(start: [3]f32, end: [3]f32, color: [4]f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
@@ -61,46 +166,189 @@ draw_line_segment :: proc(start: [3]f32, end: [3]f32, color: [4]f32, debug_data 
     })
 }
 
+// Convenience function for drawing a line segment with opacity
+draw_line_segment_alpha :: proc(start: [3]f32, end: [3]f32, color: [3]f32, alpha: f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
+    full_color := [4]f32{color[0], color[1], color[2], alpha}
+    draw_line_segment(start, end, full_color, debug_data, depth_test)
+}
 
-draw_wire_sphere_immediate :: proc(center: [3]f32, radius: f32, color: [4]f32) {
+draw_wire_cone :: proc(tip: [3]f32, base_center: [3]f32, radius: f32, color: [4]f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front, segments: int = 8) {
+    // Calculate the cone's local coordinate system
+    cone_axis := linalg.normalize(base_center - tip)
+    
+    // Find two perpendicular vectors to the cone axis
+    up := [3]f32{0, 1, 0}
+    if abs(linalg.dot(cone_axis, up)) > 0.9 {
+        up = {1, 0, 0} // Use right vector if cone is pointing up/down
+    }
+    
+    right := linalg.normalize(linalg.cross(cone_axis, up))
+    forward := linalg.cross(right, cone_axis)
+    
+    // Generate points around the base circle
+    base_points: [dynamic][3]f32
+    defer delete(base_points)
+    
+    for i in 0..<segments {
+        angle := f32(i) * 2.0 * linalg.PI / f32(segments)
+        cos_a := linalg.cos(angle)
+        sin_a := linalg.sin(angle)
+        
+        point := base_center + right * (radius * cos_a) + forward * (radius * sin_a)
+        append(&base_points, point)
+    }
+    
+    // Draw base circle
+    for i in 0..<segments {
+        next_i := (i + 1) % segments
+        draw_line_segment(base_points[i], base_points[next_i], color, debug_data, depth_test)
+    }
+    
+    // Draw lines from tip to base circle
+    for point in base_points {
+        draw_line_segment(tip, point, color, debug_data, depth_test)
+    }
+}
+
+draw_transform_axes :: proc(transform: trans.Transform, axis_length: f32, debug_data : ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
+    // Get the rotation matrix to extract the transformed axes
+    rot_pitch := linalg.matrix4_rotate_f32(transform.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+    rot_yaw   := linalg.matrix4_rotate_f32(transform.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+    rot_roll  := linalg.matrix4_rotate_f32(transform.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+    rot_combined := rot_yaw * rot_pitch * rot_roll
+    
+    // Extract the transformed axes from the rotation matrix
+    x_axis := [3]f32{rot_combined[0][0], rot_combined[0][1], rot_combined[0][2]} * axis_length
+    y_axis := [3]f32{rot_combined[1][0], rot_combined[1][1], rot_combined[1][2]} * axis_length
+    z_axis := [3]f32{rot_combined[2][0], rot_combined[2][1], rot_combined[2][2]} * axis_length
+    
+    origin := transform.position
+    cone_length := axis_length * 0.2
+    cone_radius := axis_length * 0.05
+    
+    // Draw X axis (Red)
+    x_line_end := origin + x_axis * 0.8  // Shorten line to make room for cone
+    x_cone_tip := origin + x_axis
+    draw_line_segment(origin, x_line_end, {1, 0, 0, 1}, debug_data, depth_test)
+    draw_wire_cone(x_cone_tip, x_line_end, cone_radius, {1, 0, 0, 1}, debug_data, depth_test)
+    
+    // Draw Y axis (Green)
+    y_line_end := origin + y_axis * 0.8
+    y_cone_tip := origin + y_axis
+    draw_line_segment(origin, y_line_end, {0, 1, 0, 1}, debug_data, depth_test)
+    draw_wire_cone(y_cone_tip, y_line_end, cone_radius, {0, 1, 0, 1}, debug_data, depth_test)
+    
+    // Draw Z axis (Blue)
+    z_line_end := origin + z_axis * 0.8
+    z_cone_tip := origin + z_axis
+    draw_line_segment(origin, z_line_end, {0, 0, 1, 1}, debug_data, depth_test)
+    draw_wire_cone(z_cone_tip, z_line_end, cone_radius, {0, 0, 1, 1}, debug_data, depth_test)
+}
+
+draw_wire_sphere_immediate :: proc(transform: trans.Transform, radius: f32, color: [4]f32) {
 	sgl.c4f(color[0], color[1], color[2], color[3])
 	
-	segments :: 16
-	rings :: 12
+	// Apply transformation matrix
+	sgl.push_matrix()
+	sgl.translate(transform.position[0], transform.position[1], transform.position[2])
+	// Match compute_model_matrix rotation order: yaw (Y), pitch (X), roll (Z)
+	sgl.rotate(sgl.rad(transform.rotation[1]), 0, 1, 0) // Yaw
+	sgl.rotate(sgl.rad(transform.rotation[0]), 1, 0, 0) // Pitch
+	sgl.rotate(sgl.rad(transform.rotation[2]), 0, 0, 1) // Roll
+	// Apply non-uniform scale to create ellipsoid
+	sgl.scale(transform.scale[0], transform.scale[1], transform.scale[2])
 	
-	// Draw longitude lines
+	segments :: 12  // Reduced from 16
+	rings :: 8      // Reduced from 12
+	
+	// Draw longitude lines (reduced frequency)
 	for i in 0..<segments {
+		// Only draw every other longitude line to reduce visual noise
+		if i % 2 != 0 do continue
+		
 		angle := f32(i) * 2.0 * linalg.PI / f32(segments)
 		
 		sgl.begin_line_strip()
 		for j in 0..=rings {
 			phi := f32(j) * linalg.PI / f32(rings)
-			x := center[0] + radius * linalg.sin(phi) * linalg.cos(angle)
-			y := center[1] + radius * linalg.cos(phi)
-			z := center[2] + radius * linalg.sin(phi) * linalg.sin(angle)
+			x := radius * linalg.sin(phi) * linalg.cos(angle)
+			y := radius * linalg.cos(phi)
+			z := radius * linalg.sin(phi) * linalg.sin(angle)
 			sgl.v3f(x, y, z)
 		}
 		sgl.end()
 	}
 	
-	// Draw latitude lines
+	// Draw latitude lines (reduced frequency)
 	for j in 1..<rings {
+		// Only draw every other latitude line to reduce visual noise
+		if j % 2 != 0 do continue
+		
 		phi := f32(j) * linalg.PI / f32(rings)
 		r := radius * linalg.sin(phi)
-		y := center[1] + radius * linalg.cos(phi)
+		y := radius * linalg.cos(phi)
 		
 		sgl.begin_line_strip()
 		for i in 0..=segments {
 			angle := f32(i) * 2.0 * linalg.PI / f32(segments)
-			x := center[0] + r * linalg.cos(angle)
-			z := center[2] + r * linalg.sin(angle)
+			x := r * linalg.cos(angle)
+			z := r * linalg.sin(angle)
 			sgl.v3f(x, y, z)
 		}
 		sgl.end()
 	}
+	
+	sgl.pop_matrix()
 }
 
-draw_wire_cube_immediate :: proc(transform: ren.Transform, color: [4]f32) {
+// Simple immediate mode sphere with just 3 orthogonal circles
+draw_wire_sphere_simple_immediate :: proc(transform: trans.Transform, radius: f32, color: [4]f32) {
+	sgl.c4f(color[0], color[1], color[2], color[3])
+	
+	// Apply transformation matrix
+	sgl.push_matrix()
+	sgl.translate(transform.position[0], transform.position[1], transform.position[2])
+	sgl.rotate(sgl.rad(transform.rotation[1]), 0, 1, 0) // Yaw
+	sgl.rotate(sgl.rad(transform.rotation[0]), 1, 0, 0) // Pitch
+	sgl.rotate(sgl.rad(transform.rotation[2]), 0, 0, 1) // Roll
+	sgl.scale(transform.scale[0], transform.scale[1], transform.scale[2])
+	
+	segments :: 24
+	
+	// XY plane circle (around Z axis)
+	sgl.begin_line_strip()
+	for i in 0..=segments {
+		angle := f32(i) * 2.0 * linalg.PI / f32(segments)
+		x := radius * linalg.cos(angle)
+		y := radius * linalg.sin(angle)
+		sgl.v3f(x, y, 0)
+	}
+	sgl.end()
+	
+	// XZ plane circle (around Y axis)
+	sgl.begin_line_strip()
+	for i in 0..=segments {
+		angle := f32(i) * 2.0 * linalg.PI / f32(segments)
+		x := radius * linalg.cos(angle)
+		z := radius * linalg.sin(angle)
+		sgl.v3f(x, 0, z)
+	}
+	sgl.end()
+	
+	// YZ plane circle (around X axis)
+	sgl.begin_line_strip()
+	for i in 0..=segments {
+		angle := f32(i) * 2.0 * linalg.PI / f32(segments)
+		y := radius * linalg.cos(angle)
+		z := radius * linalg.sin(angle)
+		sgl.v3f(0, y, z)
+	}
+	sgl.end()
+	
+	sgl.pop_matrix()
+}
+
+draw_wire_cube_immediate :: proc(transform: trans.Transform, color: [4]f32) {
 	sgl.c4f(color[0], color[1], color[2], color[3])
 	
 	// Apply transformation
