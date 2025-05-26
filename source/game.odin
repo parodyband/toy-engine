@@ -10,11 +10,10 @@ import slog  "lib/sokol/log"
 import sgl   "lib/sokol/gl"
 import gltf  "lib/glTF2"
 
-import ass "engine_core/asset"
-import ren "engine_core/renderer"
-import deb "engine_core/debug"
-import inp "engine_core/input"
-
+import ass   "engine_core/asset"
+import ren   "engine_core/renderer"
+import deb   "engine_core/debug"
+import inp   "engine_core/input"
 import trans "engine_core/transform"
 
 import "gameplay"
@@ -98,6 +97,14 @@ game_init :: proc() {
 			position = {0 ,15, 0},
 			rotation = {60,30, 0},
 			scale    = { 1, 1, 1},
+		},
+		bounds = {
+			left   = -25,
+			right  =  25,
+			bottom = -25,
+			top    =  25,
+			near   =  0.1,
+			far    =  20,
 		},
 	})
 
@@ -278,24 +285,19 @@ game_frame :: proc() {
 
 		if !found do return
 
-		sg.begin_pass({ action = shadow_pass_action, attachments = g.shadow_resources.shadow_attachments})
-		
-		// Calculate proper orthographic bounds based on scene
-		// This should ideally be calculated based on your scene bounds
-		// For now, using reasonable defaults
-		bounds := ren.Bounds {
-			left   = -50,
-			right  =  50,
-			bottom = -50,
-			top    =  50,
-			near   =  0.1,
-			far    =  200,
-		}
+		// NOTE: For an off-screen shadow pass we must NOT provide a swapchain.
+		// Providing both swapchain and attachments causes the backend to pick the swapchain,
+		// so the depth values would never be written into our shadow_map image.
+		sg.begin_pass({ action = shadow_pass_action, attachments = g.shadow_resources.shadow_attachments })
 
-		view_projection := ren.compute_ortho_projection(
+		// Use centered orthographic projection for easier reasoning about coverage
+		// The shadow volume extends half_depth units in front and behind the light position
+		view_projection := ren.compute_centered_ortho_projection(
 			directional_light.transform.position,
 			directional_light.transform.rotation,
-			bounds,
+			50.0,  // width of shadow coverage
+			50.0,  // height of shadow coverage  
+			25.0,  // half_depth - extends 25 units forward and backward from light position
 		)
 
 		// Store the light view projection for use in main pass
@@ -305,52 +307,29 @@ game_frame :: proc() {
 
 			model := trans.compute_model_matrix(g.render_queue[i].renderer.transform)
 
-			vs_params := shader.Vs_Shadow_Params {
-				mvp = view_projection * model,
+			vs_shadow_params := shader.Vs_Shadow_Params {
+				view_projection = view_projection,
+				model           = model,
 			}
+
+			
 			
 			sg.apply_pipeline(g.render_queue[i].shadow.pipeline)
 			sg.apply_bindings(g.render_queue[i].shadow.bindings)
-			sg.apply_uniforms(shader.UB_vs_shadow_params, { ptr = &vs_params, size = size_of(vs_params) })
+			sg.apply_uniforms(shader.UB_vs_shadow_params, { ptr = &vs_shadow_params, size = size_of(vs_shadow_params) })
 			sg.draw(0, i32(g.render_queue[i].index_count), 1)
 		}
 
-		sg.end_pass()
-	}
-	
-	// Debug draw the shadow frustum
-	if g.toggle_debug {
-		directional_light : ren.Directional_Light
-		found := false
-		// Get Directional Light
-		for i in 0..<len(g.lights) {
-			#partial switch value in g.lights[i] {
-				case ren.Directional_Light:
-					directional_light = value
-					found = true
-			}
-		}
-		
-		if found {
-			// Draw the orthographic frustum bounds
-			bounds := ren.Bounds {
-				left   = -20,
-				right  =  20,
-				bottom = -20,
-				top    =  20,
-				near   =  0.1,
-				far    =  20,
-			}
-			
-			deb.draw_ortho_frustum(
+		deb.draw_ortho_frustum(
 				directional_light.transform.position,
 				directional_light.transform.rotation,
-				bounds,
+				directional_light.bounds,
 				{1, 1, 0, 1},  // Yellow color
 				&g.debug_render_queue,
 				.Off,  // No depth test so we can always see it
 			)
-		}
+
+		sg.end_pass()
 	}
 	
 	point_light_params       : shader.Fs_Point_Light
@@ -387,8 +366,8 @@ game_frame :: proc() {
 
 	//Opaque Pass
 	{
+		
 		sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
-
 		for i in 0..<len(g.render_queue) {
 			vs_params := shader.Vs_Params {
 				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),

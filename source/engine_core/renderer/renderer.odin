@@ -9,8 +9,8 @@ add_mesh_to_render_queue :: proc(
 ) {
 	draw_call : Draw_Call
 	
+	bind_shadow_render_props(mesh_renderer, &draw_call)	
 	bind_opaque_render_props(mesh_renderer, &draw_call)
-	bind_shadow_render_props(mesh_renderer, &draw_call)
 
 	append(render_queue, draw_call)
 }
@@ -121,7 +121,8 @@ bind_shadow_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Dra
 			},
 		},
 		index_type = .UINT16,
-		cull_mode = .FRONT,
+		// Disable face culling while we debug the shadow depth write issue.
+		cull_mode = .NONE,
 		face_winding = .CW,
 		sample_count = 1,
 		depth = {

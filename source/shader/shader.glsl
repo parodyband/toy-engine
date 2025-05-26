@@ -103,13 +103,14 @@ void main() {
 @glsl_options fixup_clipspace // important: map clipspace z from -1..+1 to 0..+1 on GL
 
 layout(binding=0) uniform vs_shadow_params {
-    mat4 mvp;
+    mat4 view_projection;
+    mat4 model;
 };
 
 in vec4 pos;
 
 void main() {
-    gl_Position = mvp * pos;
+    gl_Position = view_projection * model * pos;
 }
 @end
 

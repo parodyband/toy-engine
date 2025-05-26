@@ -37,10 +37,49 @@ compute_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, bounds : 
     inv_rot_pitch := linalg.matrix4_rotate_f32(-rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
     inv_rot_yaw   := linalg.matrix4_rotate_f32(-rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
     inv_rot_roll  := linalg.matrix4_rotate_f32(-rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
-
+    
     // Create translation matrix for camera position (inverse of camera's world translation)
     trans := linalg.matrix4_translate_f32({-position[0], -position[1], -position[2]})
+    
+    // View matrix V = R_inverse * T_inverse
+    view_rotation_inv := inv_rot_roll * inv_rot_pitch * inv_rot_yaw
+    view := view_rotation_inv * trans
+    return proj * view
+}
 
+// Creates an orthographic projection where the camera is centered in the view volume.
+// This makes it easier to reason about shadow map coverage - the view extends
+// half_depth units in front of and behind the camera position.
+compute_centered_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, width: f32, height: f32, half_depth: f32) -> Mat4 {
+    // Create bounds centered around zero
+    bounds := Bounds{
+        left   = -width / 2,
+        right  =  width / 2,
+        bottom = -height / 2,
+        top    =  height / 2,
+        near   = -half_depth,  // Behind the camera
+        far    =  half_depth,   // In front of the camera
+    }
+    
+    proj := linalg.matrix_ortho3d_f32 (
+        bounds.left,
+        bounds.right,
+        bounds.bottom,
+        bounds.top,
+        bounds.near,
+        bounds.far,
+        false,  // Don't flip Z axis for shadow mapping
+    )
+    
+    // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
+    inv_rot_pitch := linalg.matrix4_rotate_f32(-rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+    inv_rot_yaw   := linalg.matrix4_rotate_f32(-rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+    inv_rot_roll  := linalg.matrix4_rotate_f32(-rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+    
+    // Create translation matrix for camera position (inverse of camera's world translation)
+    trans := linalg.matrix4_translate_f32({-position[0], -position[1], -position[2]})
+    
+    // View matrix V = R_inverse * T_inverse
     view_rotation_inv := inv_rot_roll * inv_rot_pitch * inv_rot_yaw
     view := view_rotation_inv * trans
     return proj * view
