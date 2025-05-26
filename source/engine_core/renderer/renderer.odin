@@ -125,8 +125,10 @@ bind_shadow_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Dra
 		sample_count = 1,
 		depth = {
 			pixel_format = .DEPTH,
-			compare = .LESS_EQUAL,
-			write_enabled = true,
+	                write_enabled = true,
+	                compare = .LESS_EQUAL,
+	                bias = 0.5,
+	                bias_slope_scale = 1.0,
 		},
 		label = "shadow-pipeline",
 	})
