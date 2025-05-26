@@ -57,6 +57,31 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
+	// Initialize shadow resources once
+	g.shadow_resources.shadow_map = sg.make_image({
+		render_target = true,
+		width         = 2048,
+		height        = 2048,
+		pixel_format  = .DEPTH,
+		sample_count  = 1,
+		label         = "shadow-map",
+	})
+
+	g.shadow_resources.shadow_sampler = sg.make_sampler({
+		wrap_u         = .CLAMP_TO_EDGE,
+		wrap_v         = .CLAMP_TO_EDGE,
+		min_filter     = .LINEAR,
+		mag_filter     = .LINEAR,
+		mipmap_filter  = .LINEAR,
+		compare        = .LESS,
+		label          = "shadow-sampler",
+	})
+
+	g.shadow_resources.shadow_attachments = sg.make_attachments({
+		depth_stencil = { image = g.shadow_resources.shadow_map },
+		label = "shadow-attachments",
+	})
+
 	append(&g.lights, ren.Point_Light{
 		color = {0,1,1,1},
 		intensity = 3,
@@ -103,7 +128,7 @@ add_mesh_by_name :: proc(path : string) {
 		},
 	}
 
-	ren.add_mesh_to_render_queue(mesh_renderer, &g.opaque_render_queue, &g.shadow_render_queue)
+	ren.add_mesh_to_render_queue(mesh_renderer, &g.render_queue, &g.shadow_resources)
 
 	defer gltf.unload(glb_data)
 }
@@ -218,11 +243,13 @@ game_frame :: proc() {
 		g.toggle_debug = !g.toggle_debug
 	}
 
-	// shadow_pass_action := sg.Pass_Action {
-	// 	colors = {
-	// 		0 = { load_action = .CLEAR, clear_value = {1,1,1,1} },
-	// 	},
-	// }
+	shadow_pass_action := sg.Pass_Action {
+		depth = {
+			load_action  = .CLEAR,
+			store_action = .STORE,
+			clear_value  = 1,
+		},
+	}
 
 	opaque_pass_action := sg.Pass_Action {
 		colors = {
@@ -236,7 +263,95 @@ game_frame :: proc() {
 		},
 	}
 
+	// Directional Shadow Pass
+	{
+		directional_light : ren.Directional_Light
+		found := false
+		// Get Directional Light
+		for i in 0..<len(g.lights) {
+			#partial switch value in g.lights[i] {
+				case ren.Directional_Light:
+					directional_light = value
+					found = true
+			}
+		}
+
+		if !found do return
+
+		sg.begin_pass({ action = shadow_pass_action, attachments = g.shadow_resources.shadow_attachments})
+		
+		// Calculate proper orthographic bounds based on scene
+		// This should ideally be calculated based on your scene bounds
+		// For now, using reasonable defaults
+		bounds := ren.Bounds {
+			left   = -50,
+			right  =  50,
+			bottom = -50,
+			top    =  50,
+			near   =  0.1,
+			far    =  200,
+		}
+
+		view_projection := ren.compute_ortho_projection(
+			directional_light.transform.position,
+			directional_light.transform.rotation,
+			bounds,
+		)
+
+		// Store the light view projection for use in main pass
+		g.light_view_projection = view_projection
+
+		for i in 0..<len(g.render_queue) {
+
+			model := trans.compute_model_matrix(g.render_queue[i].renderer.transform)
+
+			vs_params := shader.Vs_Shadow_Params {
+				mvp = view_projection * model,
+			}
+			
+			sg.apply_pipeline(g.render_queue[i].shadow.pipeline)
+			sg.apply_bindings(g.render_queue[i].shadow.bindings)
+			sg.apply_uniforms(shader.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params) })
+			sg.draw(0, i32(g.render_queue[i].index_count), 1)
+		}
+
+		sg.end_pass()
+	}
 	
+	// Debug draw the shadow frustum
+	if g.toggle_debug {
+		directional_light : ren.Directional_Light
+		found := false
+		// Get Directional Light
+		for i in 0..<len(g.lights) {
+			#partial switch value in g.lights[i] {
+				case ren.Directional_Light:
+					directional_light = value
+					found = true
+			}
+		}
+		
+		if found {
+			// Draw the orthographic frustum bounds
+			bounds := ren.Bounds {
+				left   = -50,
+				right  =  50,
+				bottom = -50,
+				top    =  50,
+				near   =  0.1,
+				far    =  200,
+			}
+			
+			deb.draw_ortho_frustum(
+				directional_light.transform.position,
+				directional_light.transform.rotation,
+				bounds,
+				{1, 1, 0, 1},  // Yellow color
+				&g.debug_render_queue,
+				.Off,  // No depth test so we can always see it
+			)
+		}
+	}
 	
 	point_light_params       : shader.Fs_Point_Light
 	directional_light_params : shader.Fs_Directional_Light
@@ -274,25 +389,25 @@ game_frame :: proc() {
 	{
 		sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
 
-		for i in 0..<len(g.opaque_render_queue) {
+		for i in 0..<len(g.render_queue) {
 			vs_params := shader.Vs_Params {
 				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
-				model           = trans.compute_model_matrix(g.opaque_render_queue[i].renderer.transform),
+				model           = trans.compute_model_matrix(g.render_queue[i].renderer.transform),
 				view_pos        = g.main_camera.position,
 			}
-			sg.apply_pipeline(g.opaque_render_queue[i].opaque.pipeline)
-			sg.apply_bindings(g.opaque_render_queue[i].opaque.bindings)
+			sg.apply_pipeline(g.render_queue[i].opaque.pipeline)
+			sg.apply_bindings(g.render_queue[i].opaque.bindings)
 			sg.apply_uniforms(shader.UB_vs_params,            { ptr = &vs_params,                size = size_of(vs_params) })
 			sg.apply_uniforms(shader.UB_fs_point_light,       { ptr = &point_light_params,       size = size_of(point_light_params) })
 			sg.apply_uniforms(shader.UB_fs_directional_light, { ptr = &directional_light_params, size = size_of(directional_light_params) })
-			sg.draw(0, i32(g.opaque_render_queue[i].index_count), 1)
+			sg.draw(0, i32(g.render_queue[i].index_count), 1)
 		}
 
 		sg.end_pass()
 	}
 
 	if g.toggle_debug {
-		sg.begin_pass({ action = debug_pass_action, swapchain = sglue.swapchain() })
+		sg.begin_pass( { action = debug_pass_action, swapchain = sglue.swapchain() })
 		draw_debug()
 		sg.end_pass()
 	}

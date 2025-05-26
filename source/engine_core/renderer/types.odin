@@ -32,6 +32,12 @@ Bounds :: struct {
 }
 
 Render_Pass_Props :: struct {
-    pipeline : sg.Pipeline,
-    bindings : sg.Bindings,
+    pipeline    : sg.Pipeline,
+    bindings    : sg.Bindings,
+}
+
+Shadow_Pass_Resources :: struct {
+    shadow_attachments : sg.Attachments,
+	shadow_map         : sg.Image,
+	shadow_sampler     : sg.Sampler,
 }
