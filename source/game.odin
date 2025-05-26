@@ -311,7 +311,7 @@ game_frame :: proc() {
 			
 			sg.apply_pipeline(g.render_queue[i].shadow.pipeline)
 			sg.apply_bindings(g.render_queue[i].shadow.bindings)
-			sg.apply_uniforms(shader.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params) })
+			sg.apply_uniforms(shader.UB_vs_shadow_params, { ptr = &vs_params, size = size_of(vs_params) })
 			sg.draw(0, i32(g.render_queue[i].index_count), 1)
 		}
 
