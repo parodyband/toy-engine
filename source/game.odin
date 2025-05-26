@@ -57,13 +57,6 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
-	// append(&g.lights, ren.Point_Light{
-	// 	color = {1,1,1,1},
-	// 	intensity = .5,
-	// 	transform = {
-	// 		position = {0,15,0},
-	// 	},
-	// })
 	append(&g.lights, ren.Point_Light{
 		color = {0,1,1,1},
 		intensity = 3,
@@ -72,13 +65,7 @@ game_init :: proc() {
 			scale    = {10,10,10},
 		},
 	})
-	// append(&g.lights, ren.Point_Light{
-	// 	color = {1,1,0,1},
-	// 	intensity = .5,
-	// 	transform = {
-	// 		position = {15,10,15},
-	// 	},
-	// })
+
 	append(&g.lights, ren.Directional_Light{
 		color = {1,1,1,1},
 		intensity = .8,
@@ -88,7 +75,6 @@ game_init :: proc() {
 			scale    = { 1, 1, 1},
 		},
 	})
-
 
 	deb.init(&g.debug_pipelines)
 

@@ -1,8 +1,10 @@
 @header package shader
 @header import sg "../lib/sokol/gfx"
 @header Mat4 :: matrix[4,4]f32
+@header Vec3 :: [3]f32
 
 @ctype mat4 Mat4
+@ctype vec3 Vec3
 
 @vs vs
 layout(binding=0) uniform vs_params {
