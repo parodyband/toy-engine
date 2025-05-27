@@ -98,8 +98,8 @@ game_init :: proc() {
 			scale    = { 1, 1, 1},
 		},
 		bounds = {
-			height = 50,
-			width  = 50,
+			height = 35,
+			width  = 35,
 			half_depth = 50,
 		},
 	})
