@@ -25,12 +25,12 @@ compute_view_projection :: proc(position : [3]f32, rotation : [3]f32) -> Mat4 {
 
 compute_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, bounds : Bounds) -> Mat4 {
     proj := linalg.matrix_ortho3d_f32 (
-        bounds.left,
-        bounds.right,
-        bounds.bottom,
-        bounds.top,
-        bounds.near,
-        bounds.far,
+        -bounds.width,
+        bounds.width,
+        -bounds.height,
+        bounds.height,
+        0.1,
+        bounds.half_depth * 2,
         false,
     )
     // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
@@ -50,24 +50,14 @@ compute_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, bounds : 
 // Creates an orthographic projection where the camera is centered in the view volume.
 // This makes it easier to reason about shadow map coverage - the view extends
 // half_depth units in front of and behind the camera position.
-compute_centered_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, width: f32, height: f32, half_depth: f32) -> Mat4 {
-    // Create bounds centered around zero
-    bounds := Bounds{
-        left   = -width / 2,
-        right  =  width / 2,
-        bottom = -height / 2,
-        top    =  height / 2,
-        near   = -half_depth,  // Behind the camera
-        far    =  half_depth,   // In front of the camera
-    }
-    
+compute_centered_ortho_projection :: proc(position : [3]f32, rotation : [3]f32, bounds : Bounds) -> Mat4 {    
     proj := linalg.matrix_ortho3d_f32 (
-        bounds.left,
-        bounds.right,
-        bounds.bottom,
-        bounds.top,
-        bounds.near,
-        bounds.far,
+        -bounds.width / 2,
+        bounds.width / 2,
+        -bounds.height / 2,
+        bounds.height / 2,
+        -bounds.half_depth,
+        bounds.half_depth,
         false,  // Don't flip Z axis for shadow mapping
     )
     

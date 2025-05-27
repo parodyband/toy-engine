@@ -28,7 +28,7 @@ Camera :: struct {
 }
 
 Bounds :: struct {
-    left, right, bottom, top, near, far : f32,
+    width, height, half_depth : f32,
 }
 
 Render_Pass_Props :: struct {

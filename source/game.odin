@@ -98,12 +98,9 @@ game_init :: proc() {
 			scale    = { 1, 1, 1},
 		},
 		bounds = {
-			left   = -25,
-			right  =  25,
-			bottom = -25,
-			top    =  25,
-			near   =  0.1,
-			far    =  20,
+			height = 50,
+			width  = 50,
+			half_depth = 50,
 		},
 	})
 
@@ -111,6 +108,7 @@ game_init :: proc() {
 
 	add_mesh_by_name("assets/monkey.glb")
 	add_mesh_by_name("assets/car.glb")
+	add_mesh_by_name("assets/1x1 cube.glb")
 	add_mesh_by_name("assets/floor.glb")
 }
 
@@ -280,7 +278,7 @@ game_frame :: proc() {
 		}
 	}
 
-		
+	deb.draw_grid({0,0,0}, {0,0,0},50,50,{.4,.4,.4,.8}, &g.debug_render_queue)
 
 	// Directional Shadow Pass
 	{

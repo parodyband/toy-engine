@@ -390,31 +390,35 @@ draw_wire_cube_immediate :: proc(transform: trans.Transform, color: [4]f32) {
 }
 
 // Draw orthographic frustum bounds for shadow mapping
-draw_ortho_frustum :: proc(position: [3]f32, rotation: [3]f32, bounds: ren.Bounds, color: [4]f32, debug_data: ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Off) {
+draw_ortho_frustum :: proc(position: [3]f32, rotation: [3]f32, bounds: ren.Bounds, color: [4]f32, debug_data: ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Off, show_full_volume: bool = false) {
 	// Calculate the 8 corners of the orthographic frustum in view space
-	// Note: In view space, -Z is forward (hence -near and -far)
+	// This matches compute_centered_ortho_projection which uses:
+	// left = -bounds.width / 2, right = bounds.width / 2
+	// bottom = -bounds.height / 2, top = bounds.height / 2
+	// near = -bounds.half_depth, far = bounds.half_depth
+	half_w := bounds.width / 2
+	half_h := bounds.height / 2
+	
+	// For orthographic projection, the camera is at the center (z=0 in view space)
+	// Typically we only care about the forward portion (negative Z in view space)
+	near := show_full_volume ? -bounds.half_depth : 0.0  // Start from camera position
+	far  := bounds.half_depth                            // Extend forward to half_depth
+
 	corners_view := [8][3]f32{
-		{bounds.left,  bounds.bottom, -bounds.near},  // Near bottom left
-		{bounds.right, bounds.bottom, -bounds.near},  // Near bottom right
-		{bounds.right, bounds.top,    -bounds.near},  // Near top right
-		{bounds.left,  bounds.top,    -bounds.near},  // Near top left
-		{bounds.left,  bounds.bottom, -bounds.far},   // Far bottom left
-		{bounds.right, bounds.bottom, -bounds.far},   // Far bottom right
-		{bounds.right, bounds.top,    -bounds.far},   // Far top right
-		{bounds.left,  bounds.top,    -bounds.far},   // Far top left
+		{-half_w, -half_h, near},  // Near bottom left
+		{ half_w, -half_h, near},  // Near bottom right
+		{ half_w,  half_h, near},  // Near top right
+		{-half_w,  half_h, near},  // Near top left
+		{-half_w, -half_h, far},   // Far bottom left
+		{ half_w, -half_h, far},   // Far bottom right
+		{ half_w,  half_h, far},   // Far top right
+		{-half_w,  half_h, far},   // Far top left
 	}
 	
-	// We need to reverse the view transformation that compute_ortho_projection does
-	// compute_ortho_projection does: proj * flip_z * view
-	// where view = view_rotation_inv * trans
-	// So to go from view space to world space, we need to apply the inverse
-	
-	// First, apply the inverse of flip_z (which is flip_z itself since it's its own inverse)
-	flip_z := linalg.matrix4_scale_f32({1.0, 1.0, -1.0})
-	
-	// Build the inverse view matrix
-	// Original view matrix is: inv_rot_roll * inv_rot_pitch * inv_rot_yaw * trans
-	// Inverse is: trans_inv * rot_yaw * rot_pitch * rot_roll
+	// Build the inverse view matrix to transform from view space to world space
+	// compute_centered_ortho_projection uses: view = view_rotation_inv * trans
+	// where view_rotation_inv = inv_rot_roll * inv_rot_pitch * inv_rot_yaw
+	// So the inverse is: trans_inv * rot_yaw * rot_pitch * rot_roll
 	
 	rot_pitch := linalg.matrix4_rotate_f32(rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
 	rot_yaw   := linalg.matrix4_rotate_f32(rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
@@ -427,13 +431,11 @@ draw_ortho_frustum :: proc(position: [3]f32, rotation: [3]f32, bounds: ren.Bound
 	// Transform corners to world space
 	corners_world: [8][3]f32
 	for i in 0..<8 {
-		// First apply flip_z inverse
 		corner := corners_view[i]
 		corner_4d := [4]f32{corner.x, corner.y, corner.z, 1.0}
-		flipped_4d := flip_z * corner_4d
 		
-		// Then apply view inverse
-		world_4d := view_inv * flipped_4d
+		// Apply view inverse
+		world_4d := view_inv * corner_4d
 		corners_world[i] = [3]f32{world_4d.x, world_4d.y, world_4d.z}
 	}
 	
@@ -458,4 +460,83 @@ draw_ortho_frustum :: proc(position: [3]f32, rotation: [3]f32, bounds: ren.Bound
 	
 	draw_line_segment(near_center - near_horizontal, near_center + near_horizontal, color, debug_data, depth_test)
 	draw_line_segment(near_center - near_vertical, near_center + near_vertical, color, debug_data, depth_test)
+	
+	// If we're showing only the forward portion, draw a small indicator at the camera position
+	if !show_full_volume {
+		// Draw a small cross at the camera position (which is at the near plane when near=0)
+		camera_size := min(bounds.width, bounds.height) * 0.1
+		camera_color := [4]f32{color[0], color[1], color[2], color[3] * 0.5} // Slightly dimmer
+		
+		// Get camera right and up vectors in world space
+		right := [3]f32{view_inv[0][0], view_inv[0][1], view_inv[0][2]} * camera_size
+		up := [3]f32{view_inv[1][0], view_inv[1][1], view_inv[1][2]} * camera_size
+		
+		// Draw camera position indicator
+		draw_line_segment(position - right, position + right, camera_color, debug_data, depth_test)
+		draw_line_segment(position - up, position + up, camera_color, debug_data, depth_test)
+	}
+}
+
+// Draw a grid with specified size in meters, with 1-meter spacing between lines
+draw_grid :: proc(position: [3]f32, rotation: [3]f32, amount_x: int, amount_z: int, color: [4]f32, debug_data: ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
+	// Build transformation matrix
+	rot_pitch := linalg.matrix4_rotate_f32(rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+	rot_yaw   := linalg.matrix4_rotate_f32(rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+	rot_roll  := linalg.matrix4_rotate_f32(rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+	trans     := linalg.matrix4_translate_f32(position)
+	
+	// Combine transformations: translate first, then rotate
+	transform := trans * rot_yaw * rot_pitch * rot_roll
+	
+	// Grid size is determined by amount_x and amount_z (in meters)
+	grid_width := f32(amount_x)
+	grid_depth := f32(amount_z)
+	half_width := grid_width * 0.5
+	half_depth := grid_depth * 0.5
+	
+	// Draw lines parallel to X axis (varying Z)
+	// Lines are spaced 1 meter apart
+	for i in 0..=amount_z {
+		z_pos := -half_depth + f32(i)  // From -half_depth to +half_depth in 1-meter increments
+		
+		// Start and end points in local space
+		start_local := [4]f32{-half_width, 0, z_pos, 1}
+		end_local   := [4]f32{ half_width, 0, z_pos, 1}
+		
+		// Transform to world space
+		start_world := transform * start_local
+		end_world   := transform * end_local
+		
+		draw_line_segment(
+			[3]f32{start_world.x, start_world.y, start_world.z},
+			[3]f32{end_world.x, end_world.y, end_world.z},
+			color, debug_data, depth_test
+		)
+	}
+	
+	// Draw lines parallel to Z axis (varying X)
+	// Lines are spaced 1 meter apart
+	for i in 0..=amount_x {
+		x_pos := -half_width + f32(i)  // From -half_width to +half_width in 1-meter increments
+		
+		// Start and end points in local space
+		start_local := [4]f32{x_pos, 0, -half_depth, 1}
+		end_local   := [4]f32{x_pos, 0,  half_depth, 1}
+		
+		// Transform to world space
+		start_world := transform * start_local
+		end_world   := transform * end_local
+		
+		draw_line_segment(
+			[3]f32{start_world.x, start_world.y, start_world.z},
+			[3]f32{end_world.x, end_world.y, end_world.z},
+			color, debug_data, depth_test
+		)
+	}
+}
+
+// Convenience function for drawing a grid with opacity
+draw_grid_alpha :: proc(position: [3]f32, rotation: [3]f32, amount_x: int, amount_z: int, color: [3]f32, alpha: f32, debug_data: ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Front) {
+	full_color := [4]f32{color[0], color[1], color[2], alpha}
+	draw_grid(position, rotation, amount_x, amount_z, full_color, debug_data, depth_test)
 }

@@ -93,25 +93,33 @@ void main() {
     vec3 normal = normalize(frag_norm);
     vec3 view_dir = normalize(view_position - frag_pos.xyz);
 
-    vec4 lighting = vec4(.1,.1,.2,1);
+    // Sample texture and convert from sRGB to linear space
+    vec4 albedo = gamma_to_linear(texture(sampler2D(tex, smp), uv));
 
-    // Point Lights
+    // Ambient lighting (in linear space)
+    vec4 lighting = vec4(0.2, 0.2, 0.3, 1.0);
+
+    // Point Lights (calculations in linear space)
     for(int i=0; i < MAX_POINT_LIGHTS; i++) {
-        lighting += vec4(calculate_point_light(get_point_light(i), frag_pos.xyz, normal),1);
+        lighting += vec4(calculate_point_light(get_point_light(i), frag_pos.xyz, normal), 1.0);
     }
 
-    // Directional Lights
-    lighting += vec4(calculate_directional_light(get_directional_light(), normal),1);
+    // Directional Lights (calculations in linear space)
+    lighting += vec4(calculate_directional_light(get_directional_light(), normal), 1.0);
     vec3 light_pos = direct_light_pos.xyz / direct_light_pos.w;
     
     // Apply shadow bias to prevent shadow acne
-    float shadow_bias = 0.005; // You can adjust this value as needed
+    float shadow_bias = 0.0001; // You can adjust this value as needed
     vec3 d_smp_pos = vec3((light_pos.xy + 1.0) * 0.5, light_pos.z - shadow_bias);
     
     float d_shadow = texture(sampler2DShadow(shadow_tex, shadow_smp), d_smp_pos);
-    lighting *= (d_shadow + .25);
+    lighting *= (d_shadow + 0.25);
 
-    frag_color = texture(sampler2D(tex, smp), uv) * lighting;
+    // Apply lighting to albedo (all in linear space)
+    vec4 final_color = albedo * lighting;
+    
+    // Convert from linear to sRGB for display
+    frag_color = linear_to_gamma(final_color);
 }
 @end
 

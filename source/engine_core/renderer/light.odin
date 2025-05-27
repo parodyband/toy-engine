@@ -25,9 +25,7 @@ get_light_view_proj :: proc(light : Light) -> Mat4 {
         case Directional_Light: vp = compute_centered_ortho_projection(
             light_value.transform.position,
 			light_value.transform.rotation,
-			50.0,  // width of shadow coverage
-			50.0,  // height of shadow coverage  
-			50.0,  // half_depth - extends 25 units forward and backward from light position)
+			light_value.bounds,
         )
     }
     return vp
