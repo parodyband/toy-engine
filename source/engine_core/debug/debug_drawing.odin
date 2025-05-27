@@ -510,7 +510,7 @@ draw_grid :: proc(position: [3]f32, rotation: [3]f32, amount_x: int, amount_z: i
 		draw_line_segment(
 			[3]f32{start_world.x, start_world.y, start_world.z},
 			[3]f32{end_world.x, end_world.y, end_world.z},
-			color, debug_data, depth_test
+			color, debug_data, depth_test,
 		)
 	}
 	
@@ -530,7 +530,7 @@ draw_grid :: proc(position: [3]f32, rotation: [3]f32, amount_x: int, amount_z: i
 		draw_line_segment(
 			[3]f32{start_world.x, start_world.y, start_world.z},
 			[3]f32{end_world.x, end_world.y, end_world.z},
-			color, debug_data, depth_test
+			color, debug_data, depth_test,
 		)
 	}
 }
