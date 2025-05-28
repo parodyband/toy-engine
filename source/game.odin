@@ -282,18 +282,11 @@ game_frame :: proc() {
 
 	// Directional Shadow Pass
 	{
-
 		if !direct_light_found do return
-		// NOTE: For an off-screen shadow pass we must NOT provide a swapchain.
-		// Providing both swapchain and attachments causes the backend to pick the swapchain,
-		// so the depth values would never be written into our shadow_map image.
 		sg.begin_pass({ action = shadow_pass_action, attachments = g.shadow_resources.shadow_attachments })
 
-		// Use centered orthographic projection for easier reasoning about coverage
-		// The shadow volume extends half_depth units in front and behind the light position
 		view_projection := ren.get_light_view_proj(directional_light)
 
-		// Store the light view projection for use in main pass
 		g.light_view_projection = view_projection
 
 		for i in 0..<len(g.render_queue) {
