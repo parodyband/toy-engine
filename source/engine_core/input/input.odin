@@ -18,6 +18,7 @@ init_input_state :: proc(state: ^Input_State) {
     state.keys_just_released = make(map[sapp.Keycode]bool)
     state.mouse_buttons_down = make(map[sapp.Mousebutton]bool)
     state.mouse_locked = false
+    init(state)
 }
 
 // GetKeyDown returns true only on the frame when the key is first pressed

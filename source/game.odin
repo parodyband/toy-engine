@@ -43,9 +43,7 @@ game_init :: proc() {
 
 	gameplay.on_awake(g)
 	
-	// Initialize input state
 	inp.init_input_state(&g.game_input)
-	inp.init(&g.game_input)
 
 	g.toggle_debug = false
 
