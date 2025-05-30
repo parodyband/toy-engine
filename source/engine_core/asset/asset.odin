@@ -4,13 +4,9 @@ import "base:runtime"
 
 import "core:log"
 import "core:image/png"
-import "core:image"
-import "core:slice"
 import "core:fmt"
 
 import "../../lib/glTF2"
-
-import file "../../lib/sokol_utils"
 
 
 load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Mesh {
@@ -35,7 +31,10 @@ load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Mesh {
 		element_size      := 3 * size_of(f32)
 		data_end_offset   := data_start_offset + int(accessor.count) * element_size
 
-		loaded_mesh_data.vertex_buffer_bytes = raw_buffer_bytes[data_start_offset:data_end_offset]
+		// Copy the vertex data instead of just slicing
+		vertex_data_slice := raw_buffer_bytes[data_start_offset:data_end_offset]
+		loaded_mesh_data.vertex_buffer_bytes = make([]byte, len(vertex_data_slice))
+		copy(loaded_mesh_data.vertex_buffer_bytes, vertex_data_slice)
 		loaded_mesh_data.vertex_count = int(accessor.count)
 	}
 
@@ -55,7 +54,11 @@ load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Mesh {
 				data_start_offset := int(buffer_view.byte_offset + accessor.byte_offset)
 				element_size      := 3 * size_of(f32)
 				data_end_offset   := data_start_offset + int(accessor.count) * element_size
-				loaded_mesh_data.normal_buffer_bytes = raw_buffer_bytes[data_start_offset:data_end_offset]
+				
+				// Copy the normal data
+				normal_data_slice := raw_buffer_bytes[data_start_offset:data_end_offset]
+				loaded_mesh_data.normal_buffer_bytes = make([]byte, len(normal_data_slice))
+				copy(loaded_mesh_data.normal_buffer_bytes, normal_data_slice)
 			} else {
 				fmt.println("Normal buffer URI is not []byte")
 			}
@@ -81,7 +84,11 @@ load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Mesh {
 				// UVs are typically 2 floats (vec2)
 				element_size      := 2 * size_of(f32) 
 				data_end_offset   := data_start_offset + int(accessor.count) * element_size
-				loaded_mesh_data.uv_buffer_bytes = raw_buffer_bytes[data_start_offset:data_end_offset]
+				
+				// Copy the UV data
+				uv_data_slice := raw_buffer_bytes[data_start_offset:data_end_offset]
+				loaded_mesh_data.uv_buffer_bytes = make([]byte, len(uv_data_slice))
+				copy(loaded_mesh_data.uv_buffer_bytes, uv_data_slice)
 			} else {
 				fmt.println("UV buffer URI is not []byte")
 			}
@@ -105,7 +112,10 @@ load_mesh_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Mesh {
 			data_start_offset := int(buffer_view.byte_offset + accessor.byte_offset)
 			data_end_offset   := data_start_offset + int(accessor.count) * component_size
 			
-			loaded_mesh_data.index_buffer_bytes = raw_buffer_bytes[data_start_offset:data_end_offset]
+			// Copy the index data
+			index_data_slice := raw_buffer_bytes[data_start_offset:data_end_offset]
+			loaded_mesh_data.index_buffer_bytes = make([]byte, len(index_data_slice))
+			copy(loaded_mesh_data.index_buffer_bytes, index_data_slice)
 			loaded_mesh_data.index_count = int(accessor.count)
 		} else {
 			fmt.println("Primitive has no indices defined.")
@@ -121,58 +131,82 @@ load_texture_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Texture {
     tex_i := int(pbr.base_color_texture.?.index)
     bytes := get_glb_image_bytes(glb_data, tex_i)
 
-    img, err := png.load_from_bytes(data = bytes, allocator = context.temp_allocator)
-    assert(err == nil, "texture decode failed")
-
-    pixels := img.pixels.buf[:]
-    byte_len := slice.size(pixels)
-    bytes_per_pixel := byte_len / (img.width * img.height)
-
-    final_pixels_ptr := raw_data(pixels)
-    final_pixels_size := uint(byte_len)
-
-    if bytes_per_pixel == 3 {
-        converted_pixels_slice := rgb_to_rgba(pixels, img.width, img.height, context.temp_allocator)
-        final_pixels_ptr = raw_data(converted_pixels_slice)
-        final_pixels_size = uint(len(converted_pixels_slice))
-    } else if bytes_per_pixel != 4 {
-        log.errorf("Unsupported PNG pixel format: %v bytes per pixel (expected 3 or 4)", bytes_per_pixel)
-        return Texture{} // Return empty texture on error
+    // Validate we have image data
+    if len(bytes) == 0 {
+        fmt.println("ERROR: No image bytes extracted from GLB!")
+        return Texture{}
+    }
+    
+    // Check PNG signature (first 8 bytes should be: 137 80 78 71 13 10 26 10)
+    if len(bytes) >= 8 {
+        png_signature := []u8{137, 80, 78, 71, 13, 10, 26, 10}
+        is_png := true
+        for i in 0..<8 {
+            if bytes[i] != png_signature[i] {
+                is_png = false
+                break
+            }
+        }
+        if is_png {
+            fmt.println("Valid PNG signature detected")
+        } else {
+            fmt.printfln("WARNING: Data doesn't look like PNG. First 8 bytes: %v", bytes[:8])
+        }
     }
 
-    return Texture{
-		dimensions = Texture_Dimensions {
-			width = i32(img.width),
-			height = i32(img.height),
-		},
-        data = final_pixels_ptr[:final_pixels_size],
-        final_pixels_ptr = final_pixels_ptr,
-        final_pixels_size = final_pixels_size,
-    }
-}
-
-load_texture_from_png_file :: proc(file_path : string) -> Texture {
-	
-	bytes, ok := file.read_entire_file(file_path)
-	assert(ok)
-
-	img, err := png.load_from_bytes(bytes)
-
+    img, err := png.load_from_bytes(data = bytes, allocator = context.allocator)
 	if err != nil {
-		fmt.printfln("Error loading PNG file %v: %v", file_path, err)
+		fmt.printfln("PNG load error: %v", err)
+		assert(false, "texture decode failed")
 	}
 
-	defer image.destroy(img)
-
-	return Texture {
-		dimensions = Texture_Dimensions {
-			width = i32(img.width),
-			height = i32(img.height),
-		},
-		data = bytes,
-		final_pixels_ptr = raw_data(img.pixels.buf),
-		final_pixels_size = uint(slice.size(img.pixels.buf[:])),
+	// Get the actual pixel data size
+	pixels := img.pixels.buf[:]
+	byte_len := len(pixels)  // For []u8, len() gives us the byte count
+	
+	// Validate we have pixel data
+	if byte_len == 0 {
+		fmt.println("ERROR: PNG pixel buffer is empty!")
+		return Texture{}
 	}
+	
+	// PNG loader should tell us the format
+	fmt.printfln("PNG loaded: %dx%d, channels: %d, depth: %d bits", 
+		img.width, img.height, img.channels, img.depth)
+	
+	// Calculate expected size based on channels
+	expected_size := img.width * img.height * img.channels * (img.depth / 8)
+	fmt.printfln("Pixel data size: %d bytes, expected: %d bytes", byte_len, expected_size)
+	
+	final_pixels := pixels
+	final_pixels_size := uint(byte_len)
+
+	// Only convert if we have RGB data (3 channels)
+	if img.channels == 3 && img.depth == 8 {
+		fmt.println("Converting RGB to RGBA...")
+		converted_pixels_slice := rgb_to_rgba(pixels, img.width, img.height, context.allocator)
+		final_pixels = converted_pixels_slice
+		final_pixels_size = uint(len(converted_pixels_slice))
+	} else if img.channels == 4 && img.depth == 8 {
+		fmt.println("Image already in RGBA format")
+	} else {
+		log.errorf("Unsupported PNG format: %v channels, %v bits per channel", img.channels, img.depth)
+		return Texture{} // Return empty texture on error
+	}
+
+	dimensions := Texture_Dimensions{
+		width  = i32(img.width),
+		height = i32(img.height),
+	}
+
+	// Convert slice to dynamic array
+	dynamic_pixels := make([dynamic]u8, len(final_pixels))
+	copy(dynamic_pixels[:], final_pixels)
+
+	fmt.printfln("Final texture: %dx%d, %d bytes", 
+		img.width, img.height, len(dynamic_pixels))
+
+	return fill_mip_chain(dynamic_pixels, dimensions, 5)
 }
 
 load_glb_data_from_file :: proc(path : string) -> ^glTF2.Data {
@@ -195,14 +229,21 @@ get_glb_image_bytes :: proc (d: ^glTF2.Data, tex_idx: int) -> []byte {
     tex := d.textures[tex_idx]
     img := d.images[tex.source.?]
 
+    fmt.printfln("Extracting image %d from GLB...", tex_idx)
+
     if img.buffer_view != nil {
         view  := d.buffer_views[img.buffer_view.?]
         buf   := d.buffers[view.buffer].uri.([]byte)
         start := int(view.byte_offset)
-        return buf[start : start + int(view.byte_length)]
+        length := int(view.byte_length)
+        fmt.printfln("Image in buffer view: offset=%d, length=%d bytes", start, length)
+        return buf[start : start + length]
     }
 
-    return img.uri.([]byte)
+    // Image stored as URI
+    bytes := img.uri.([]byte)
+    fmt.printfln("Image as URI: %d bytes", len(bytes))
+    return bytes
 }
 
 rgb_to_rgba :: proc(input_pixels: []u8, width: int, height: int, allocator: runtime.Allocator) -> []u8 {

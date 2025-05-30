@@ -6,18 +6,18 @@ import "core:math/linalg"
 Vec3 :: [3]f32
 Mat4 :: matrix[4,4]f32
 
-compute_model_matrix :: proc(t: Transform) -> Mat4 {
-    position := t.position
+compute_model_matrix :: proc(transform: Transform) -> Mat4 {
+    position := transform.position
     trans := linalg.matrix4_translate_f32({position[0], position[1], position[2]})
 
     // Rotation matrices (convert degrees to radians)
     // rotation[0] is Pitch (around X), rotation[1] is Yaw (around Y), rotation[2] is Roll (around Z)
-    rot_pitch := linalg.matrix4_rotate_f32(t.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
-    rot_yaw   := linalg.matrix4_rotate_f32(t.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
-    rot_roll  := linalg.matrix4_rotate_f32(t.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
+    rot_pitch := linalg.matrix4_rotate_f32(transform.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
+    rot_yaw   := linalg.matrix4_rotate_f32(transform.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
+    rot_roll  := linalg.matrix4_rotate_f32(transform.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
 
     // Scale matrix
-    scale := linalg.matrix4_scale_f32({t.scale[0], t.scale[1], t.scale[2]})
+    scale := linalg.matrix4_scale_f32({transform.scale[0], transform.scale[1], transform.scale[2]})
 
     // Combine rotations: roll, then pitch, then yaw (matching camera rotation order)
     rot_combined := rot_yaw * rot_pitch * rot_roll

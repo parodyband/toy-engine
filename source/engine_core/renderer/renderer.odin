@@ -1,6 +1,8 @@
 package renderer
 import        "../../shader"
 import sg     "../../lib/sokol/gfx"
+import        "core:fmt"
+import        "core:c"
 
 add_mesh_to_render_queue :: proc(
 	mesh_renderer      : Mesh_Renderer,
@@ -44,22 +46,38 @@ bind_opaque_render_props :: proc(mesh_renderer : Mesh_Renderer, shadow_resources
 		data = { ptr = raw_data(mesh_renderer.mesh.index_buffer_bytes),  size = uint(len(mesh_renderer.mesh.index_buffer_bytes)) },
 	})
 
+	assert(len(mesh_renderer.materials) > 0, "Error: Mesh renderer has no materials")
 	albedo_texture := mesh_renderer.materials[0].albedo_texture
 
-	draw_call.opaque.bindings.images[shader.IMG_tex] = sg.make_image({
-		width  = albedo_texture.dimensions.width,
-		height = albedo_texture.dimensions.height,
-		data = {
-			subimage = {
-				0 = {
-					0 = {
-						ptr  = albedo_texture.final_pixels_ptr,
-						size = albedo_texture.final_pixels_size,
-					},
-				},
-			},
-		},
-	})
+	assert(len(albedo_texture.mip_chain) > 0, "Error: Texture mip_chain is empty")
+	assert(len(albedo_texture.mip_chain[0].final_pixels) > 0, "Error: Texture has no pixel data")
+
+	// Calculate expected size for RGBA8 format
+	expected_size := int(albedo_texture.dimensions.width) * int(albedo_texture.dimensions.height) * 4
+	actual_size := len(albedo_texture.mip_chain[0].final_pixels)
+	
+	fmt.printfln("Creating GPU texture: %dx%d, expected %d bytes, actual %d bytes",
+		albedo_texture.dimensions.width, albedo_texture.dimensions.height, 
+		expected_size, actual_size)
+	
+	assert(actual_size == expected_size, "Error: Texture size mismatch for RGBA8 format")
+
+	// ------------------------------------------------------------------
+	// Upload the full mip chain to the GPU image
+	// ------------------------------------------------------------------
+	img_desc : sg.Image_Desc
+	img_desc.width        = albedo_texture.dimensions.width
+	img_desc.height       = albedo_texture.dimensions.height
+	img_desc.pixel_format = .RGBA8
+	img_desc.num_mipmaps  = c.int(len(albedo_texture.mip_chain))
+
+	for mip_idx in 0..<int(len(albedo_texture.mip_chain)) {
+		mip_pixels := albedo_texture.mip_chain[mip_idx].final_pixels
+		img_desc.data.subimage[0][mip_idx].ptr  = raw_data(mip_pixels)
+		img_desc.data.subimage[0][mip_idx].size = uint(len(mip_pixels))
+	}
+
+	draw_call.opaque.bindings.images[shader.IMG_tex] = sg.make_image(img_desc)
 
 	draw_call.opaque.bindings.samplers[shader.SMP_smp] = sg.make_sampler({
 		max_anisotropy = 8,

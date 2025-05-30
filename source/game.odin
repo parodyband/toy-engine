@@ -91,27 +91,29 @@ game_init :: proc() {
 		color = {1,1,1,1},
 		intensity = .8,
 		transform = {
-			position = {0 ,15, 0},
-			rotation = {60,30, 0},
+			position = {-5 ,20, -5},
+			rotation = {70, 45, 0},
 			scale    = { 1, 1, 1},
 		},
 		bounds = {
-			height = 35,
-			width  = 35,
-			half_depth = 50,
+			height = 60,
+			width  = 60,
+			half_depth = 75,
 		},
 	})
 
 	deb.init(&g.debug_pipelines)
 
-	add_mesh_by_name("assets/monkey.glb")
+	add_mesh_by_name("assets/monkey.glb", {-10,10,-10})
 	add_mesh_by_name("assets/car.glb")
 	add_mesh_by_name("assets/1x1 cube.glb")
 	add_mesh_by_name("assets/floor.glb")
 }
 
-add_mesh_by_name :: proc(path : string) {
+add_mesh_by_name :: proc(path : string, position : [3]f32 = {0,0,0}) {
 	glb_data      := ass.load_glb_data_from_file(path)
+	defer gltf.unload(glb_data)  // Now safe to unload after we've copied all data
+	
 	glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
 	glb_texture   := ass.load_texture_from_glb_data(glb_data)
 
@@ -124,15 +126,13 @@ add_mesh_by_name :: proc(path : string) {
 		},
 		mesh = glb_mesh_data,
 		transform = {
-			position = {0,0,0},
+			position = { position.x, position.y, position.z },
 			rotation = {0,0,0},
 			scale    = {1,1,1},
 		},
 	}
 
 	ren.add_mesh_to_render_queue(mesh_renderer, &g.render_queue, &g.shadow_resources)
-
-	defer gltf.unload(glb_data)
 }
 
 

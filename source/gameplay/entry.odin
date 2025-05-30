@@ -18,7 +18,7 @@ update_flycam :: proc(delta_time: f32, camera : ^ren.Camera) {
 	// Camera movement speed
 	move_speed:    Float = 50.0
     rot_speed:     Float = 0.35
-    smooth_factor: Float = 20.0
+    smooth_factor: Float = 40.0
 
     // Mouse look
     mouse_delta := inp.get_mouse_delta()
@@ -97,4 +97,5 @@ on_awake  :: proc(memory : ^common.Game_Memory) {
 
 on_update :: proc(delta_time : f32, time : f32, memory : ^common.Game_Memory) {
     update_flycam(delta_time, &memory.main_camera)
+    memory.render_queue[0].renderer.transform.rotation.y += delta_time * 15
 }
