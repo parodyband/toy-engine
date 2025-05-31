@@ -3,7 +3,6 @@ package gameplay
 import "core:math/linalg"
 
 import sapp  "../lib/sokol/app"
-
 import ren "../engine_core/renderer"
 import inp "../engine_core/input"
 

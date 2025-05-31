@@ -70,7 +70,7 @@
     "**/*.o": true,
     "**/*.obj": true,
     "**/*.exe": true,
-    "**/*.md": true,
+    // "**/*.md": true,
     "**/*.sublime-project": true,
     "**/*.sublime-workspace": true,
     "**/*ols.json": true,
