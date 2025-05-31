@@ -41,3 +41,8 @@ Shadow_Pass_Resources :: struct {
 	shadow_map         : sg.Image,
 	shadow_sampler     : sg.Sampler,
 }
+
+Entity :: struct {
+    transform     : trans.Transform,
+    mesh_renderer : Mesh_Renderer,
+}

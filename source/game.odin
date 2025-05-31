@@ -112,11 +112,10 @@ game_init :: proc() {
 
 add_mesh_by_name :: proc(path : string, position : [3]f32 = {0,0,0}) {
 	glb_data      := ass.load_glb_data_from_file(path)
-	defer gltf.unload(glb_data)  // Now safe to unload after we've copied all data
-	
 	glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
 	glb_texture   := ass.load_texture_from_glb_data(glb_data)
-
+	defer gltf.unload(glb_data)
+	
 	mesh_renderer := ren.Mesh_Renderer{
 		materials = []ass.Material{
 			{ // Element 0
