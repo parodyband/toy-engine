@@ -17,5 +17,5 @@ Game_Memory :: struct {
 	debug_pipelines     : [deb.Depth_Test_Mode]sgl.Pipeline,
 	toggle_debug        : bool,
 	light_view_projection : matrix[4,4]f32,
-	game_time           : f32
+	game_time           : f32,
 }

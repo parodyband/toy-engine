@@ -8,7 +8,7 @@ import inp "../engine_core/input"
 
 import "../common"
 
-import trans "../engine_core/transform"
+// import trans "../engine_core/transform"
 
 Mat4  :: matrix[4,4]f32
 Vec3  :: [3]f32
@@ -19,11 +19,9 @@ Tinker     : ^ren.Entity
 Tinker_Key : ^ren.Entity
 
 on_load :: proc(memory : ^common.Game_Memory) {
-    Tinker     = ren.create_entity_by_mesh_path("assets/Tinker.glb",     &memory.render_queue, &memory.shadow_resources, {0,5,0})
+    Tinker     = ren.create_entity_by_mesh_path("assets/Tinker.glb",     &memory.render_queue, &memory.shadow_resources, {0,0,0})
 	Tinker_Key = ren.create_entity_by_mesh_path("assets/Tinker_Key.glb", &memory.render_queue, &memory.shadow_resources)
     Tinker_Key.transform.parent = &Tinker.transform
-
-	ren.create_entity_by_mesh_path("assets/floor.glb", &memory.render_queue, &memory.shadow_resources)
 }
 
 update_flycam :: proc(delta_time: f32, camera : ^ren.Camera) {
@@ -101,25 +99,47 @@ update_flycam :: proc(delta_time: f32, camera : ^ren.Camera) {
 on_awake  :: proc(memory : ^common.Game_Memory) {
 	memory.main_camera = ren.Camera {
 		fov = 45,
-		position = {0, 20, -40},
-		rotation = {0, 0, 0},
+		position = {40, 0, 20},
+		rotation = {0, 250, 0},
 	}
 }
 
 time_counter :f32 = 0
+tinker_velocity :f32 = 0  // Add velocity variable for flappy bird physics
 
 on_update :: proc(delta_time : f32, time : f32, memory : ^common.Game_Memory) {
-    update_flycam(delta_time, &memory.main_camera)
+    // update_flycam(delta_time, &memory.main_camera)
+    if inp.GetKey(.ESCAPE) do sapp.quit()
 
-    tinker_base_position :[3]f32= {0,5,0}
-
-    if inp.GetKey(.RIGHT){
-        time_counter += delta_time
-        move_value := linalg.sin(time_counter)
-        
-        Tinker.transform.rotation.y     += delta_time * 60
-        Tinker_Key.transform.rotation.z += delta_time * 300
-        forward := trans.get_forward_direction(Tinker.transform)
-        Tinker.transform.position = tinker_base_position + forward * (move_value * 5)
+    Tinker_Key.transform.rotation.z += delta_time * 600
+    // Flappy bird physics constants
+    gravity: f32 = -45.0        // Downward acceleration
+    jump_force: f32 = 20.0       // Upward velocity when jumping
+    max_fall_speed: f32 = -30.0 // Terminal velocity
+    max_jump_speed: f32 = 25.0  // Maximum upward velocity
+    
+    // Apply gravity to velocity
+    tinker_velocity += gravity * delta_time
+    
+    // Handle jump input (flappy bird style)
+    if inp.get_key_down(.SPACE) {        
+        tinker_velocity = jump_force  // Set velocity directly for responsive feel
+    }
+    
+    // Clamp velocity to reasonable limits
+    tinker_velocity = linalg.clamp(tinker_velocity, max_fall_speed, max_jump_speed)
+    
+    // Apply velocity to position
+    Tinker.transform.position.y += tinker_velocity * delta_time
+    target_rotation_x := linalg.clamp(tinker_velocity * 3.0, -30.0, 30.0)
+    
+    // Smooth rotation interpolation for natural feel
+    rotation_smooth_speed: f32 = 12.0
+    Tinker.transform.rotation.x = linalg.lerp(Tinker.transform.rotation.x, target_rotation_x, delta_time * rotation_smooth_speed)
+    
+    // Optional: Keep character above ground (adjust as needed)
+    if Tinker.transform.position.y < -5.0 {
+        Tinker.transform.position.y = -5.0
+        tinker_velocity = 0  // Stop velocity when hitting ground
     }
 }

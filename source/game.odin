@@ -78,9 +78,9 @@ game_init :: proc() {
 		color = {1,1,1,1},
 		intensity = 1,
 		transform = {
-			position = {-5 ,20, -5},
-			rotation = {45, 45, 0},
-			scale    = { 1, 1, 1},
+			position = {-10, 0,  -10},
+			rotation = {30, -90, 0},
+			scale    = { 1, 1,   1},
 		},
 		bounds = {
 			height = 40,
@@ -201,7 +201,7 @@ draw_debug :: proc() {
 @export
 game_frame :: proc() {
 	dt := f32(sapp.frame_duration())
-	g.game_time += dt;
+	g.game_time += dt
 
 	gameplay.on_update(dt, g.game_time, g)
 

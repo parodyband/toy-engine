@@ -32,7 +32,7 @@ create_entity_by_mesh_path :: proc(
 
 	entity.transform = {
 		position = position,
-		scale    = {1,1,1}
+		scale    = {1,1,1},
 	}
 
 	return entity
