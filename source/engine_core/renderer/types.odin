@@ -31,6 +31,16 @@ Bounds :: struct {
     width, height, half_depth : f32,
 }
 
+Rendering_Resources :: struct {
+    shadow_resources : Shadow_Pass_Resources,
+    texture_pool     : ass.Texture_Pool,
+}
+
+Entity :: struct {
+    transform     : trans.Transform,
+    mesh_renderer : Mesh_Renderer,
+}
+
 Render_Pass_Props :: struct {
     pipeline    : sg.Pipeline,
     bindings    : sg.Bindings,
@@ -40,9 +50,4 @@ Shadow_Pass_Resources :: struct {
     shadow_attachments : sg.Attachments,
 	shadow_map         : sg.Image,
 	shadow_sampler     : sg.Sampler,
-}
-
-Entity :: struct {
-    transform     : trans.Transform,
-    mesh_renderer : Mesh_Renderer,
 }

@@ -26,11 +26,11 @@ Obstacle :: struct {
 }
 
 on_load :: proc(memory : ^common.Game_Memory) {
-    Tinker     = ren.create_entity_by_mesh_path("assets/Tinker.glb",     &memory.render_queue, &memory.shadow_resources, {0,0,0})
-	Tinker_Key = ren.create_entity_by_mesh_path("assets/Tinker_Key.glb", &memory.render_queue, &memory.shadow_resources)
+    Tinker     = ren.create_entity_by_mesh_path("assets/Tinker.glb",     &memory.render_queue, &memory.rendering_resources, {0,0,0})
+	Tinker_Key = ren.create_entity_by_mesh_path("assets/Tinker_Key.glb", &memory.render_queue, &memory.rendering_resources)
 
-    Saw_Arm    = ren.create_entity_by_mesh_path("assets/saw_arm.glb",    &memory.render_queue, &memory.shadow_resources, {0,0,10})
-    Saw_Blade  = ren.create_entity_by_mesh_path("assets/saw_blade.glb",  &memory.render_queue, &memory.shadow_resources, {0,0,10})
+    Saw_Arm    = ren.create_entity_by_mesh_path("assets/saw_arm.glb",    &memory.render_queue, &memory.rendering_resources, {0,0,10})
+    Saw_Blade  = ren.create_entity_by_mesh_path("assets/saw_blade.glb",  &memory.render_queue, &memory.rendering_resources, {0,0,10})
 
     Tinker_Key.transform.parent = &Tinker.transform
 }

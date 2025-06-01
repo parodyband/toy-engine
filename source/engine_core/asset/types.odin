@@ -11,7 +11,7 @@ Mesh :: struct {
 
 Material :: struct {
     tint_color     : [4]f32,
-    albedo_texture : Texture,
+    albedo_texture_hash : u64,
 }
 
 Texture :: struct {
@@ -20,7 +20,7 @@ Texture :: struct {
 }
 
 Mip_Map :: struct {
-    final_pixels      : [dynamic]byte,
+    final_pixels : [dynamic]byte,
 }
 
 Mip_Chain :: []Mip_Map
@@ -29,3 +29,5 @@ Texture_Dimensions :: struct {
     width  : i32,
     height : i32,
 }
+
+Texture_Pool :: map[u64]Texture

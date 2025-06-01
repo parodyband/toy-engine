@@ -10,7 +10,7 @@ import trans  "../transform"
 create_entity_by_mesh_path :: proc(
 		path : string,
 		render_queue : ^[dynamic]Draw_Call,
-		shadow_pass_resources : ^Shadow_Pass_Resources,
+		renderer_resources : ^Rendering_Resources,
 		position : [3]f32 = {0,0,0},
 		spawn : bool = false,
 	) -> ^Entity{
@@ -18,19 +18,20 @@ create_entity_by_mesh_path :: proc(
 	glb_data      := ass.load_glb_data_from_file(path)
 	glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
 	glb_texture   := ass.load_texture_from_glb_data(glb_data)
+	
 	defer gltf.unload(glb_data)
 	
 	mesh_renderer := Mesh_Renderer{
 		materials = []ass.Material{
 			{ // Element 0
-				tint_color     = {1.0,1.0,1.0,1.0},
-				albedo_texture = glb_texture,
+				tint_color          = {1.0,1.0,1.0,1.0},
+				albedo_texture_hash = store_texture_in_pool(glb_texture, renderer_resources),
 			},
 		},
 		mesh = glb_mesh_data,
 	}
 
-	entity := add_mesh_to_render_queue(mesh_renderer, render_queue, shadow_pass_resources)
+	entity := add_mesh_to_render_queue(mesh_renderer, render_queue, renderer_resources)
 
 	entity.transform = {
 		position = position,
@@ -43,7 +44,7 @@ create_entity_by_mesh_path :: proc(
 add_mesh_to_render_queue :: proc(
 	mesh_renderer      : Mesh_Renderer,
 	render_queue       : ^[dynamic]Draw_Call,
-	shadow_resources   : ^Shadow_Pass_Resources,
+	renderer_resources : ^Rendering_Resources,
 	) -> ^Entity {
 	// Create a temporary entity with the mesh renderer
 	temp_entity := Entity{
@@ -59,7 +60,7 @@ add_mesh_to_render_queue :: proc(
 	draw_call : Draw_Call
 	draw_call.entity = temp_entity
 	
-	bind_opaque_render_props(shadow_resources, &draw_call)
+	bind_opaque_render_props(renderer_resources, &draw_call)
 	bind_outline_render_props(&draw_call)
 	bind_shadow_render_props(&draw_call)
 	
@@ -104,7 +105,7 @@ destroy_entity :: proc(
 }
 
 @(private="file")
-bind_opaque_render_props :: proc( shadow_resources : ^Shadow_Pass_Resources, draw_call : ^Draw_Call, ){
+bind_opaque_render_props :: proc( rendering_resources : ^Rendering_Resources, draw_call : ^Draw_Call, ){
 	// Set the renderer field
 	mesh_renderer := draw_call.entity.mesh_renderer
 	
@@ -132,8 +133,7 @@ bind_opaque_render_props :: proc( shadow_resources : ^Shadow_Pass_Resources, dra
 		data = { ptr = raw_data(mesh_renderer.mesh.index_buffer_bytes),  size = uint(len(mesh_renderer.mesh.index_buffer_bytes)) },
 	})
 
-	assert(len(mesh_renderer.materials) > 0, "Error: Mesh renderer has no materials")
-	albedo_texture := mesh_renderer.materials[0].albedo_texture
+	albedo_texture := get_texture_from_pool(mesh_renderer.materials[0].albedo_texture_hash, rendering_resources)
 
 	assert(len(albedo_texture.mip_chain) > 0, "Error: Texture mip_chain is empty")
 	assert(len(albedo_texture.mip_chain[0].final_pixels) > 0, "Error: Texture has no pixel data")
@@ -149,7 +149,7 @@ bind_opaque_render_props :: proc( shadow_resources : ^Shadow_Pass_Resources, dra
 	assert(actual_size == expected_size, "Error: Texture size mismatch for RGBA8 format")
 
 	// ------------------------------------------------------------------
-	// Upload the full mip chain to the GPU image
+	// Bind the full mip chain to the GPU image
 	// ------------------------------------------------------------------
 	img_desc : sg.Image_Desc
 	img_desc.width        = albedo_texture.dimensions.width
@@ -173,8 +173,8 @@ bind_opaque_render_props :: proc( shadow_resources : ^Shadow_Pass_Resources, dra
 	})
 
 	// Bind Shadows
-	draw_call.opaque.bindings.images[shader.IMG_shadow_tex]   = shadow_resources.shadow_map
-	draw_call.opaque.bindings.samplers[shader.SMP_shadow_smp] = shadow_resources.shadow_sampler
+	draw_call.opaque.bindings.images[shader.IMG_shadow_tex]   = rendering_resources.shadow_resources.shadow_map
+	draw_call.opaque.bindings.samplers[shader.SMP_shadow_smp] = rendering_resources.shadow_resources.shadow_sampler
 
 	// Shader and pipeline object
 	draw_call.opaque.pipeline = sg.make_pipeline({

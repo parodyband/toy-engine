@@ -56,7 +56,9 @@ game_init :: proc() {
 	////////////// SHADOW RESOURCES ///////////////
 	///////////////////////////////////////////////
 
-	g.shadow_resources.shadow_map = sg.make_image({
+	shadow_res := &g.rendering_resources.shadow_resources
+
+	shadow_res.shadow_map = sg.make_image({
 		render_target = true,
 		width         = 1024,
 		height        = 1024,
@@ -65,7 +67,7 @@ game_init :: proc() {
 		label         = "shadow-map",
 	})
 
-	g.shadow_resources.shadow_sampler = sg.make_sampler({
+	shadow_res.shadow_sampler = sg.make_sampler({
 		wrap_u         = .CLAMP_TO_EDGE,
 		wrap_v         = .CLAMP_TO_EDGE,
 		min_filter     = .LINEAR,
@@ -74,8 +76,8 @@ game_init :: proc() {
 		label          = "shadow-sampler",
 	})
 
-	g.shadow_resources.shadow_attachments = sg.make_attachments({
-		depth_stencil = { image = g.shadow_resources.shadow_map },
+	shadow_res.shadow_attachments = sg.make_attachments({
+		depth_stencil = { image = shadow_res.shadow_map },
 		label = "shadow-attachments",
 	})
 
@@ -246,7 +248,7 @@ game_frame :: proc() {
 	// Directional Shadow Pass
 	{
 		if !direct_light_found do return
-		sg.begin_pass({ action = shadow_pass_action, attachments = g.shadow_resources.shadow_attachments })
+		sg.begin_pass({ action = shadow_pass_action, attachments = g.rendering_resources.shadow_resources.shadow_attachments })
 
 		view_projection := ren.get_light_view_proj(directional_light)
 
