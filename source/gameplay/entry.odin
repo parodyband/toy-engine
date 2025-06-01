@@ -29,8 +29,8 @@ on_load :: proc(memory : ^common.Game_Memory) {
     Tinker     = ren.create_entity_by_mesh_path("assets/Tinker.glb",     &memory.render_queue, &memory.shadow_resources, {0,0,0})
 	Tinker_Key = ren.create_entity_by_mesh_path("assets/Tinker_Key.glb", &memory.render_queue, &memory.shadow_resources)
 
-    Saw_Arm    = ren.create_entity_by_mesh_path("assets/saw_arm.glb", &memory.render_queue, &memory.shadow_resources, {0,0,10})
-    Saw_Blade  = ren.create_entity_by_mesh_path("assets/saw_blade.glb", &memory.render_queue, &memory.shadow_resources, {0,0,10})
+    Saw_Arm    = ren.create_entity_by_mesh_path("assets/saw_arm.glb",    &memory.render_queue, &memory.shadow_resources, {0,0,10})
+    Saw_Blade  = ren.create_entity_by_mesh_path("assets/saw_blade.glb",  &memory.render_queue, &memory.shadow_resources, {0,0,10})
 
     Tinker_Key.transform.parent = &Tinker.transform
 }
@@ -125,10 +125,10 @@ on_update :: proc(delta_time : f32, time : f32, memory : ^common.Game_Memory) {
     Saw_Blade.transform.rotation.x += delta_time * 200
     Tinker_Key.transform.rotation.z += delta_time * 600
 
-    gravity: f32        = -45.0  // Downward acceleration
-    jump_force: f32     = +20.0   // Upward velocity when jumping
-    max_fall_speed: f32 = -30.0  // Terminal velocity
-    max_jump_speed: f32 = +25.0   // Maximum upward velocity
+    gravity: f32        = -60.0
+    jump_force: f32     = +25.0
+    max_fall_speed: f32 = -60.0
+    max_jump_speed: f32 = +25.0
     
     tinker_velocity += gravity * delta_time
     

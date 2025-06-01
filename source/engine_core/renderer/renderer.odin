@@ -13,7 +13,7 @@ create_entity_by_mesh_path :: proc(
 		shadow_pass_resources : ^Shadow_Pass_Resources,
 		position : [3]f32 = {0,0,0},
 		spawn : bool = false,
-) -> ^Entity{
+	) -> ^Entity{
 
 	glb_data      := ass.load_glb_data_from_file(path)
 	glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
@@ -44,7 +44,7 @@ add_mesh_to_render_queue :: proc(
 	mesh_renderer      : Mesh_Renderer,
 	render_queue       : ^[dynamic]Draw_Call,
 	shadow_resources   : ^Shadow_Pass_Resources,
-) -> ^Entity {
+	) -> ^Entity {
 	// Create a temporary entity with the mesh renderer
 	temp_entity := Entity{
 		mesh_renderer = mesh_renderer,
@@ -77,7 +77,7 @@ instantiate_entity :: proc(
 		rotation = {0,0,0},
 		scale    = {1,1,1},
 	}
-) -> ^Entity {
+	) -> ^Entity {
 	// Create a copy of the entity with the given transform
 	new_entity := entity^
 	new_entity.transform = transform
@@ -94,7 +94,7 @@ instantiate_entity :: proc(
 destroy_entity :: proc(
 	entity : ^Entity,
 	render_queue : ^[dynamic]Draw_Call,
-) {
+	) {
 	for i := 0; i < len(render_queue); i += 1 {
 		if &render_queue[i].entity == entity {
 			ordered_remove(render_queue, i)

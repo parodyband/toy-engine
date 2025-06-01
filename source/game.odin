@@ -52,7 +52,10 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
-	// Initialize shadow resources once
+	///////////////////////////////////////////////
+	////////////// SHADOW RESOURCES ///////////////
+	///////////////////////////////////////////////
+
 	g.shadow_resources.shadow_map = sg.make_image({
 		render_target = true,
 		width         = 1024,
@@ -94,13 +97,7 @@ game_init :: proc() {
 	deb.init(&g.debug_pipelines)
 	gameplay.on_load(g)
 	gameplay.on_awake(g)
-	// create_entity_by_mesh_path("assets/Tinker.glb", {0,5,0})
-	// create_entity_by_mesh_path("assets/Tinker_Key.glb", {0,5,0})
-	// create_entity_by_mesh_path("assets/floor.glb")
 }
-
-
-
 
 draw_debug :: proc() {
 	if len(g.debug_render_queue) == 0 {
@@ -129,17 +126,13 @@ draw_debug :: proc() {
 
 	// Setup sokol-gl for debug drawing with proper depth testing
 	sgl.defaults()
-	
-	// Start with the first depth mode
 	current_depth_mode := deb.Depth_Test_Mode.Front
 	sgl.load_pipeline(g.debug_pipelines[current_depth_mode])
 	
-	// Compute projection matrix (same as renderer)
 	proj := linalg.matrix4_perspective(g.main_camera.fov * linalg.RAD_PER_DEG, sapp.widthf() / sapp.heightf(), 0.01, 1000.0)
 	flip_z := linalg.matrix4_scale_f32({1.0, 1.0, -1.0})
 	proj_flip := proj * flip_z
 	
-	// Compute view matrix (inverse camera transform)
 	inv_rot_pitch := linalg.matrix4_rotate_f32(-g.main_camera.rotation[0] * linalg.RAD_PER_DEG, {1.0, 0.0, 0.0})
 	inv_rot_yaw   := linalg.matrix4_rotate_f32(-g.main_camera.rotation[1] * linalg.RAD_PER_DEG, {0.0, 1.0, 0.0})
 	inv_rot_roll  := linalg.matrix4_rotate_f32(-g.main_camera.rotation[2] * linalg.RAD_PER_DEG, {0.0, 0.0, 1.0})
@@ -147,16 +140,15 @@ draw_debug :: proc() {
 	view_rot_inv := inv_rot_roll * inv_rot_pitch * inv_rot_yaw
 	view := view_rot_inv * trans
 	
-	// Load matrices into sokol-gl
+	// Load matrices
 	sgl.matrix_mode_projection()
 	sgl.load_matrix(&proj_flip[0][0])
 	
 	sgl.matrix_mode_modelview()
 	sgl.load_matrix(&view[0][0])
 
-	// Draw all debug primitives
+	// Draw 
 	for i in 0..<len(g.debug_render_queue) {
-		// Get the depth test mode for this draw call
 		depth_mode: deb.Depth_Test_Mode
 		switch data in g.debug_render_queue[i].data {
 			case deb.Line_Segment_Data:
@@ -167,13 +159,11 @@ draw_debug :: proc() {
 				depth_mode = data.depth_test
 		}
 		
-		// Switch pipeline if needed
 		if depth_mode != current_depth_mode {
 			current_depth_mode = depth_mode
 			sgl.load_pipeline(g.debug_pipelines[current_depth_mode])
 		}
 		
-		// Draw the primitive
 		switch draw_data in g.debug_render_queue[i].data {
 			case deb.Line_Segment_Data:
 				sgl.c4f(draw_data.color[0], draw_data.color[1], draw_data.color[2], draw_data.color[3])
@@ -194,7 +184,6 @@ draw_debug :: proc() {
 		}
 	}
 
-	//clear debug draw calls
 	clear(&g.debug_render_queue)
 
 	sgl.draw()
