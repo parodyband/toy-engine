@@ -4,29 +4,63 @@ import sg     "../../lib/sokol/gfx"
 import        "core:fmt"
 import        "core:c"
 import ass    "../asset"
+import gltf   "../../lib/glTF2"
+
+create_entity_by_mesh_path :: proc(
+		path : string,
+		render_queue : ^[dynamic]Draw_Call,
+		shadow_pass_resources : ^Shadow_Pass_Resources,
+		position : [3]f32 = {0,0,0},
+) -> ^Entity{
+
+	glb_data      := ass.load_glb_data_from_file(path)
+	glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
+	glb_texture   := ass.load_texture_from_glb_data(glb_data)
+	defer gltf.unload(glb_data)
+	
+	mesh_renderer := Mesh_Renderer{
+		materials = []ass.Material{
+			{ // Element 0
+				tint_color     = {1.0,1.0,1.0,1.0},
+				albedo_texture = glb_texture,
+			},
+		},
+		mesh = glb_mesh_data,
+	}
+
+	entity := add_mesh_to_render_queue(mesh_renderer, render_queue, shadow_pass_resources)
+
+	entity.transform = {
+		position = position,
+		scale    = {1,1,1}
+	}
+
+	return entity
+}
 
 add_mesh_to_render_queue :: proc(
 	mesh_renderer      : Mesh_Renderer,
 	render_queue       : ^[dynamic]Draw_Call,
 	shadow_resources   : ^Shadow_Pass_Resources,
-) {
+) -> ^Entity {
+
 	draw_call : Draw_Call
-	
-	bind_shadow_render_props(mesh_renderer, &draw_call)	
-	bind_opaque_render_props(mesh_renderer, shadow_resources, &draw_call)
-	bind_outline_render_props(mesh_renderer, &draw_call)
+	draw_call.entity = Entity{
+		mesh_renderer = mesh_renderer,
+	}
+
+	bind_opaque_render_props(shadow_resources, &draw_call)
+	bind_outline_render_props(&draw_call)
+	bind_shadow_render_props(&draw_call)
 
 	append(render_queue, draw_call)
+	return &render_queue[len(render_queue)-1].entity
 }
 
 @(private="file")
-bind_opaque_render_props :: proc(
-	mesh_renderer : Mesh_Renderer,
-	shadow_resources : ^Shadow_Pass_Resources,
-	draw_call : ^Draw_Call,
-){
+bind_opaque_render_props :: proc( shadow_resources : ^Shadow_Pass_Resources, draw_call : ^Draw_Call, ){
 	// Set the renderer field
-	draw_call.renderer = mesh_renderer
+	mesh_renderer := draw_call.entity.mesh_renderer
 	
 	// Set the index count
 	draw_call.index_count = mesh_renderer.mesh.index_count
@@ -117,10 +151,9 @@ bind_opaque_render_props :: proc(
 }
 
 @(private="file")
-bind_outline_render_props :: proc(
-	mesh_renderer : Mesh_Renderer,
-	draw_call : ^Draw_Call,
-){
+bind_outline_render_props :: proc(draw_call : ^Draw_Call,){
+	mesh_renderer := draw_call.entity.mesh_renderer
+
 	assert(mesh_renderer.mesh.vertex_count > 0, "Error: Vertex Buffer Count for Mesh is 0")
 	draw_call.outline.bindings.vertex_buffers[0] = sg.make_buffer({
 		data = { ptr = raw_data(mesh_renderer.mesh.vertex_buffer_bytes), size = uint(len(mesh_renderer.mesh.vertex_buffer_bytes)) },
@@ -161,10 +194,9 @@ bind_outline_render_props :: proc(
 }
 
 @(private="file")
-bind_shadow_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Draw_Call) {
-	// Set the renderer field
-	draw_call.renderer = mesh_renderer
-	
+bind_shadow_render_props :: proc(draw_call : ^Draw_Call,) {
+
+	mesh_renderer := draw_call.entity.mesh_renderer
 	// Set the index count
 	draw_call.index_count = mesh_renderer.mesh.index_count
 

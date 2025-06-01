@@ -8,9 +8,7 @@ import sg    "lib/sokol/gfx"
 import sglue "lib/sokol/glue"
 import slog  "lib/sokol/log"
 import sgl   "lib/sokol/gl"
-import gltf  "lib/glTF2"
 
-import ass   "engine_core/asset"
 import ren   "engine_core/renderer"
 import deb   "engine_core/debug"
 import inp   "engine_core/input"
@@ -40,8 +38,6 @@ game_app_default_desc :: proc() -> sapp.Desc {
 @export
 game_init :: proc() {
 	g = new(common.Game_Memory)
-
-	gameplay.on_awake(g)
 	
 	inp.init_input_state(&g.game_input)
 
@@ -57,8 +53,8 @@ game_init :: proc() {
 	// Initialize shadow resources once
 	g.shadow_resources.shadow_map = sg.make_image({
 		render_target = true,
-		width         = 2048,
-		height        = 2048,
+		width         = 1024,
+		height        = 1024,
 		pixel_format  = .DEPTH,
 		sample_count  = 1,
 		label         = "shadow-map",
@@ -78,15 +74,6 @@ game_init :: proc() {
 		label = "shadow-attachments",
 	})
 
-	// append(&g.lights, ren.Point_Light{
-	// 	color = {0,1,1,1},
-	// 	intensity = 3,
-	// 	transform = {
-	// 		position = {-5,5,-5},
-	// 		scale    = {10,10,10},
-	// 	},
-	// })
-
 	append(&g.lights, ren.Directional_Light{
 		color = {1,1,1,1},
 		intensity = 1,
@@ -103,38 +90,14 @@ game_init :: proc() {
 	})
 
 	deb.init(&g.debug_pipelines)
-
-	//add_mesh_by_name("assets/monkey.glb", {-10,10,-10})
-	add_mesh_by_name("assets/Tinker.glb", {0,5,0})
-	add_mesh_by_name("assets/Tinker_Key.glb", {0,5,0})
-	//add_mesh_by_name("assets/car.glb")
-	//add_mesh_by_name("assets/1x1 cube.glb")
-	add_mesh_by_name("assets/floor.glb")
+	gameplay.on_load(g)
+	gameplay.on_awake(g)
+	// create_entity_by_mesh_path("assets/Tinker.glb", {0,5,0})
+	// create_entity_by_mesh_path("assets/Tinker_Key.glb", {0,5,0})
+	// create_entity_by_mesh_path("assets/floor.glb")
 }
 
-add_mesh_by_name :: proc(path : string, position : [3]f32 = {0,0,0}) {
-	glb_data      := ass.load_glb_data_from_file(path)
-	glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
-	glb_texture   := ass.load_texture_from_glb_data(glb_data)
-	defer gltf.unload(glb_data)
-	
-	mesh_renderer := ren.Mesh_Renderer{
-		materials = []ass.Material{
-			{ // Element 0
-				tint_color     = {1.0,1.0,1.0,1.0},
-				albedo_texture = glb_texture,
-			},
-		},
-		mesh = glb_mesh_data,
-		transform = {
-			position = { position.x, position.y, position.z },
-			rotation = {0,0,0},
-			scale    = {1,1,1},
-		},
-	}
 
-	ren.add_mesh_to_render_queue(mesh_renderer, &g.render_queue, &g.shadow_resources)
-}
 
 
 draw_debug :: proc() {
@@ -300,7 +263,7 @@ game_frame :: proc() {
 
 		for i in 0..<len(g.render_queue) {
 
-			model := trans.compute_model_matrix(g.render_queue[i].renderer.transform)
+			model := trans.compute_model_matrix(g.render_queue[i].entity.transform)
 
 			vs_shadow_params := shader.Vs_Shadow_Params {
 				view_projection = view_projection,
@@ -359,9 +322,9 @@ game_frame :: proc() {
 	{
 		sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
 		for i in 0..<len(g.render_queue) {
-			model := trans.compute_model_matrix(g.render_queue[i].renderer.transform)
+			model := trans.compute_model_matrix(g.render_queue[i].entity.transform)
 			vs_params := shader.Vs_Params {
-				view_projection  = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
+				view_projection  = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation, g.main_camera.fov),
 				model            = model,
 				view_pos         = g.main_camera.position,
 				direct_light_mvp = ren.get_light_view_proj(directional_light) * model,
@@ -382,9 +345,9 @@ game_frame :: proc() {
 	{
 		sg.begin_pass({ action = outline_pass_action, swapchain = sglue.swapchain() })
 		for i in 0..<len(g.render_queue) {
-			model := trans.compute_model_matrix(g.render_queue[i].renderer.transform)
+			model := trans.compute_model_matrix(g.render_queue[i].entity.transform)
 			vs_outline_params := shader.Vs_Outline_Params {
-				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
+				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation, g.main_camera.fov),
 				model           = model,
 				view_pos        = g.main_camera.position,
 				pixel_factor    = 0.001,

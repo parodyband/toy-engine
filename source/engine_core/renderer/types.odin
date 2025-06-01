@@ -12,13 +12,12 @@ Draw_Call :: struct {
     index_count : int,
     skip_render : bool,
     visible     : bool,
-    renderer    : Mesh_Renderer,
+    entity      : Entity,
 }
 
 Mesh_Renderer :: struct {
     mesh      :   ass.Mesh,
     materials : []ass.Material,
-    transform : trans.Transform,
 }
 
 Camera :: struct {

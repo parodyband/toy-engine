@@ -8,10 +8,23 @@ import inp "../engine_core/input"
 
 import "../common"
 
+import trans "../engine_core/transform"
+
 Mat4  :: matrix[4,4]f32
 Vec3  :: [3]f32
 Vec2  :: [2]f32
 Float :: f32
+
+Tinker     : ^ren.Entity
+Tinker_Key : ^ren.Entity
+
+on_load :: proc(memory : ^common.Game_Memory) {
+    Tinker     = ren.create_entity_by_mesh_path("assets/Tinker.glb",     &memory.render_queue, &memory.shadow_resources)
+	Tinker_Key = ren.create_entity_by_mesh_path("assets/Tinker_Key.glb", &memory.render_queue, &memory.shadow_resources)
+    Tinker_Key.transform.parent = &Tinker.transform
+
+	ren.create_entity_by_mesh_path("assets/floor.glb", &memory.render_queue, &memory.shadow_resources)
+}
 
 update_flycam :: proc(delta_time: f32, camera : ^ren.Camera) {
 	// Camera movement speed
@@ -86,9 +99,8 @@ update_flycam :: proc(delta_time: f32, camera : ^ren.Camera) {
 }
 
 on_awake  :: proc(memory : ^common.Game_Memory) {
-    // Initialize camera
 	memory.main_camera = ren.Camera {
-		fov = 60,
+		fov = 45,
 		position = {0, 20, -40},
 		rotation = {0, 0, 0},
 	}
@@ -96,12 +108,14 @@ on_awake  :: proc(memory : ^common.Game_Memory) {
 
 on_update :: proc(delta_time : f32, time : f32, memory : ^common.Game_Memory) {
     update_flycam(delta_time, &memory.main_camera)
-    memory.render_queue[0].renderer.transform.rotation.y += delta_time * 60
-    memory.render_queue[1].renderer.transform.rotation.y += delta_time * 60
-    memory.render_queue[1].renderer.transform.rotation.z += delta_time * 300
 
-    y_value := linalg.sin(time * 0.01)
-    memory.render_queue[0].renderer.transform.position.y = 5 + y_value * 3
-    memory.render_queue[1].renderer.transform.position.y = 5 + y_value * 3
+    Tinker.transform.rotation.y     += delta_time * 60
+    Tinker_Key.transform.rotation.z += delta_time * 300
 
+    move_value := linalg.sin(time * 0.01)
+
+    tinker_base_position :[3]f32= {0,5,0}    
+    forward := trans.get_forward_direction(Tinker.transform)
+
+    Tinker.transform.position = tinker_base_position + forward * (move_value * 3)
 }
