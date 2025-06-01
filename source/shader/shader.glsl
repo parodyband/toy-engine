@@ -95,20 +95,37 @@ directional_light_t get_directional_light() {
     );
 }
 
+vec3 apply_cel_shading(vec3 color) {
+    float brightness = dot(color, vec3(0.299, 0.587, 0.114));
+    const float levels = 3.0;
+    
+    float quantized = floor(brightness * levels) / levels;
+    quantized = mix(quantized, quantized + 0.1, 0.5);
+    vec3 cel_shaded = color * (quantized / max(brightness, 0.001));
+    
+    return cel_shaded;
+}
+
 void main() {
     vec3 normal   = normalize(frag_norm);
     vec3 view_dir = normalize(view_position - frag_pos.xyz);
 
     vec4 albedo = gamma_to_linear(texture(sampler2D(tex, smp), uv));
-    vec4 lighting = vec4(0.15, 0.15, 0.35, 1.0);
+    vec4 lighting = vec4(0.4, 0.4, 0.4, 1.0);
 
-    for(int i = 0; i < MAX_POINT_LIGHTS; i++) {
-        vec3 light_contrib = calculate_point_light(get_point_light(i), frag_pos.xyz, normal);
-        lighting.rgb += light_contrib;
+    // Process lights in groups of 4 for better optimization
+    for(int i = 0; i < MAX_POINT_LIGHTS; i += 4) {
+        if (i + 0 < MAX_POINT_LIGHTS) lighting.rgb += calculate_point_light(get_point_light(i + 0), frag_pos.xyz, normal, view_dir);
+        if (i + 1 < MAX_POINT_LIGHTS) lighting.rgb += calculate_point_light(get_point_light(i + 1), frag_pos.xyz, normal, view_dir);
+        if (i + 2 < MAX_POINT_LIGHTS) lighting.rgb += calculate_point_light(get_point_light(i + 2), frag_pos.xyz, normal, view_dir);
+        if (i + 3 < MAX_POINT_LIGHTS) lighting.rgb += calculate_point_light(get_point_light(i + 3), frag_pos.xyz, normal, view_dir);
     }
 
-    vec3 direct_light_contrib = calculate_directional_light(get_directional_light(), normal);
+    vec3 direct_light_contrib = calculate_directional_light(get_directional_light(), normal, view_dir);
     lighting.rgb += direct_light_contrib;
+    
+    // Apply cel-shading to create stylized lighting bands
+    lighting.rgb = apply_cel_shading(lighting.rgb);
     
     vec3 light_dir = normalize(directional_light.direction.xyz);
     float shadow_factor = calculate_shadow(
@@ -120,7 +137,7 @@ void main() {
         gl_FragCoord.xy
     );
     
-    lighting = apply_shadow(lighting, shadow_factor, 0.25);
+    lighting = apply_shadow(lighting, shadow_factor, 0.5);
     vec4 final_color = albedo * lighting;
     frag_color = linear_to_gamma(final_color);
 }
@@ -151,3 +168,48 @@ void main() { }
 @end
 
 @program shadow vs_shadow fs_shadow
+
+//==============================================================================
+// OUTLINE
+//==============================================================================
+@vs vs_outline
+
+layout(binding=0) uniform vs_outline_params {
+    mat4 view_projection;
+    mat4 model;
+    vec3 view_pos;
+    float pixel_factor;
+};
+
+in vec4 pos;
+in vec4 normal;
+
+const float OUTLINE_PIXELS = 4.0;
+
+void main() {
+    // Transform position to world space
+    vec4 world_pos = model * pos;
+    
+    // Transform normal to world space and normalize
+    vec3 world_normal = normalize(mat3(model) * normal.xyz);
+    
+    // Calculate distance from camera to vertex
+    float dist = length(world_pos.xyz - view_pos);
+    
+    // Scale outline thickness based on distance for constant screen-space size
+    float scale = OUTLINE_PIXELS * pixel_factor * dist;
+    
+    // Expand along the normal
+    world_pos.xyz += world_normal * scale;
+    
+    // Transform to clip space
+    gl_Position = view_projection * world_pos;
+}
+@end
+
+@fs fs_outline
+out vec4 frag_color;
+void main() { frag_color = vec4(0,0,0,1); }
+@end
+
+@program outline vs_outline fs_outline

@@ -78,21 +78,21 @@ game_init :: proc() {
 		label = "shadow-attachments",
 	})
 
-	append(&g.lights, ren.Point_Light{
-		color = {0,1,1,1},
-		intensity = 3,
-		transform = {
-			position = {-5,5,-5},
-			scale    = {10,10,10},
-		},
-	})
+	// append(&g.lights, ren.Point_Light{
+	// 	color = {0,1,1,1},
+	// 	intensity = 3,
+	// 	transform = {
+	// 		position = {-5,5,-5},
+	// 		scale    = {10,10,10},
+	// 	},
+	// })
 
 	append(&g.lights, ren.Directional_Light{
 		color = {1,1,1,1},
-		intensity = .8,
+		intensity = 1,
 		transform = {
 			position = {-5 ,20, -5},
-			rotation = {70, 45, 0},
+			rotation = {45, 45, 0},
 			scale    = { 1, 1, 1},
 		},
 		bounds = {
@@ -105,10 +105,11 @@ game_init :: proc() {
 	deb.init(&g.debug_pipelines)
 
 	//add_mesh_by_name("assets/monkey.glb", {-10,10,-10})
+	add_mesh_by_name("assets/Tinker.glb", {0,5,0})
+	add_mesh_by_name("assets/Tinker_Key.glb", {0,5,0})
 	//add_mesh_by_name("assets/car.glb")
-	add_mesh_by_name("assets/Tinker.glb", {-5,5,-10})
 	//add_mesh_by_name("assets/1x1 cube.glb")
-	add_mesh_by_name("assets/floor.glb", {0,-10,0})
+	add_mesh_by_name("assets/floor.glb")
 }
 
 add_mesh_by_name :: proc(path : string, position : [3]f32 = {0,0,0}) {
@@ -259,6 +260,16 @@ game_frame :: proc() {
 		},
 	}
 
+	outline_pass_action := sg.Pass_Action {
+		colors = {
+			0 = { load_action = .DONTCARE, clear_value = {.2,.2,.2,1} },
+		},
+		depth = {
+			load_action = .LOAD,
+			store_action = .DONTCARE,
+		},
+	}
+
 	debug_pass_action := sg.Pass_Action {
 		colors = {
 			0 = { load_action = .DONTCARE },
@@ -360,6 +371,27 @@ game_frame :: proc() {
 			sg.apply_uniforms(shader.UB_vs_params,            { ptr = &vs_params,                size = size_of(vs_params) })
 			sg.apply_uniforms(shader.UB_fs_point_light,       { ptr = &point_light_params,       size = size_of(point_light_params) })
 			sg.apply_uniforms(shader.UB_fs_directional_light, { ptr = &directional_light_params, size = size_of(directional_light_params) })
+			sg.draw(0, i32(g.render_queue[i].index_count), 1)
+		}
+
+		sg.end_pass()
+	}
+
+	
+	//Outline Pass
+	{
+		sg.begin_pass({ action = outline_pass_action, swapchain = sglue.swapchain() })
+		for i in 0..<len(g.render_queue) {
+			model := trans.compute_model_matrix(g.render_queue[i].renderer.transform)
+			vs_outline_params := shader.Vs_Outline_Params {
+				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation),
+				model           = model,
+				view_pos        = g.main_camera.position,
+				pixel_factor    = 0.001,
+			}
+			sg.apply_pipeline(g.render_queue[i].outline.pipeline)
+			sg.apply_bindings(g.render_queue[i].outline.bindings)
+			sg.apply_uniforms(shader.UB_vs_outline_params, { ptr = &vs_outline_params, size = size_of(vs_outline_params) })
 			sg.draw(0, i32(g.render_queue[i].index_count), 1)
 		}
 

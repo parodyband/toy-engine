@@ -3,6 +3,7 @@ import        "../../shader"
 import sg     "../../lib/sokol/gfx"
 import        "core:fmt"
 import        "core:c"
+import ass    "../asset"
 
 add_mesh_to_render_queue :: proc(
 	mesh_renderer      : Mesh_Renderer,
@@ -13,6 +14,7 @@ add_mesh_to_render_queue :: proc(
 	
 	bind_shadow_render_props(mesh_renderer, &draw_call)	
 	bind_opaque_render_props(mesh_renderer, shadow_resources, &draw_call)
+	bind_outline_render_props(mesh_renderer, &draw_call)
 
 	append(render_queue, draw_call)
 }
@@ -115,6 +117,50 @@ bind_opaque_render_props :: proc(
 }
 
 @(private="file")
+bind_outline_render_props :: proc(
+	mesh_renderer : Mesh_Renderer,
+	draw_call : ^Draw_Call,
+){
+	assert(mesh_renderer.mesh.vertex_count > 0, "Error: Vertex Buffer Count for Mesh is 0")
+	draw_call.outline.bindings.vertex_buffers[0] = sg.make_buffer({
+		data = { ptr = raw_data(mesh_renderer.mesh.vertex_buffer_bytes), size = uint(len(mesh_renderer.mesh.vertex_buffer_bytes)) },
+	})
+
+	// Calculate smoothed normals for outline pass
+	smooth_normals := ass.calculate_smooth_normals(mesh_renderer.mesh)
+	
+	assert(len(smooth_normals) > 0, "Error: Smooth normal buffer is empty")
+	draw_call.outline.bindings.vertex_buffers[1] = sg.make_buffer({
+		data = { ptr = raw_data(smooth_normals), size = uint(len(smooth_normals)) },
+	})
+
+	assert(len(mesh_renderer.mesh.index_buffer_bytes) > 0, "Error: Index Buffer Count for Mesh is 0")
+	draw_call.outline.bindings.index_buffer = sg.make_buffer({
+		type = .INDEXBUFFER,
+		data = { ptr = raw_data(mesh_renderer.mesh.index_buffer_bytes),  size = uint(len(mesh_renderer.mesh.index_buffer_bytes)) },
+	})
+
+	// Shader and pipeline object
+	draw_call.outline.pipeline = sg.make_pipeline({
+		shader = sg.make_shader(shader.outline_shader_desc(sg.query_backend())),
+		layout = {
+			attrs = {
+				shader.ATTR_outline_pos    = { format = .FLOAT3 },
+				shader.ATTR_outline_normal = { format = .FLOAT3, buffer_index = 1 },
+			},
+		},
+		index_type = .UINT16,
+		cull_mode = .FRONT,
+		face_winding = .CW,
+		depth = {
+			compare = .LESS_EQUAL,
+			write_enabled = false,
+			
+		},
+	})
+}
+
+@(private="file")
 bind_shadow_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Draw_Call) {
 	// Set the renderer field
 	draw_call.renderer = mesh_renderer
@@ -147,16 +193,15 @@ bind_shadow_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Dra
 			},
 		},
 		index_type = .UINT16,
-		// Disable face culling while we debug the shadow depth write issue.
-		cull_mode = .NONE,
+		cull_mode = .BACK,
 		face_winding = .CW,
 		sample_count = 1,
 		depth = {
 			pixel_format = .DEPTH,
 			write_enabled = true,
 			compare = .LESS_EQUAL,
-			bias = 0.005,
-			bias_slope_scale = 2.0,
+			bias = 0.001,
+			bias_slope_scale = 1.0,
 		},
 		label = "shadow-pipeline",
 	})

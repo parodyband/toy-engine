@@ -1,7 +1,6 @@
 package renderer
 
 import "core:math/linalg"
-import "core:math"
 
 import sapp "../../lib/sokol/app"
 

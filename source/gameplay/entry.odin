@@ -96,5 +96,12 @@ on_awake  :: proc(memory : ^common.Game_Memory) {
 
 on_update :: proc(delta_time : f32, time : f32, memory : ^common.Game_Memory) {
     update_flycam(delta_time, &memory.main_camera)
-    memory.render_queue[0].renderer.transform.rotation.y += delta_time * 15
+    memory.render_queue[0].renderer.transform.rotation.y += delta_time * 60
+    memory.render_queue[1].renderer.transform.rotation.y += delta_time * 60
+    memory.render_queue[1].renderer.transform.rotation.z += delta_time * 300
+
+    y_value := linalg.sin(time * 0.01)
+    memory.render_queue[0].renderer.transform.position.y = 5 + y_value * 3
+    memory.render_queue[1].renderer.transform.position.y = 5 + y_value * 3
+
 }

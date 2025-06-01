@@ -8,6 +8,7 @@ Draw_Call :: struct {
     index       : int,
     opaque      : Render_Pass_Props,
     shadow      : Render_Pass_Props,
+    outline     : Render_Pass_Props,
     index_count : int,
     skip_render : bool,
     visible     : bool,

@@ -5,6 +5,7 @@ import "base:runtime"
 import "core:log"
 import "core:image/png"
 import "core:fmt"
+import "core:math"
 
 import "../../lib/glTF2"
 
@@ -258,4 +259,102 @@ rgb_to_rgba :: proc(input_pixels: []u8, width: int, height: int, allocator: runt
         local_output_pixels[dst_idx+3] = 255 // Opaque alpha
     }
     return local_output_pixels
+}
+
+calculate_smooth_normals :: proc(mesh_data: Mesh) -> []byte {
+	// Create a map to store positions and their associated normals
+	Position_Key :: struct {
+		x, y, z: f32,
+	}
+	
+	position_normals := make(map[Position_Key][dynamic][3]f32)
+	defer delete(position_normals)
+	
+	// Parse vertex positions and normals
+	vertex_count := mesh_data.vertex_count
+	
+	// Process each vertex
+	for i in 0..<vertex_count {
+		// Read position (3 floats)
+		pos_offset := i * 3 * size_of(f32)
+		pos_x := (cast(^f32)&mesh_data.vertex_buffer_bytes[pos_offset])^
+		pos_y := (cast(^f32)&mesh_data.vertex_buffer_bytes[pos_offset + size_of(f32)])^
+		pos_z := (cast(^f32)&mesh_data.vertex_buffer_bytes[pos_offset + 2*size_of(f32)])^
+		
+		// Read normal (3 floats)
+		norm_offset := i * 3 * size_of(f32)
+		norm_x := (cast(^f32)&mesh_data.normal_buffer_bytes[norm_offset])^
+		norm_y := (cast(^f32)&mesh_data.normal_buffer_bytes[norm_offset + size_of(f32)])^
+		norm_z := (cast(^f32)&mesh_data.normal_buffer_bytes[norm_offset + 2*size_of(f32)])^
+		
+		// Create position key (with some epsilon for floating point comparison)
+		epsilon : f32 = 0.0001
+		key := Position_Key{
+			x = f32(int(pos_x / epsilon)) * epsilon,
+			y = f32(int(pos_y / epsilon)) * epsilon,
+			z = f32(int(pos_z / epsilon)) * epsilon,
+		}
+		
+		// Add normal to the list for this position
+		if !(key in position_normals) {
+			position_normals[key] = make([dynamic][3]f32)
+		}
+		append(&position_normals[key], [3]f32{norm_x, norm_y, norm_z})
+	}
+	
+	// Create new normal buffer with averaged normals
+	smooth_normals := make([]byte, len(mesh_data.normal_buffer_bytes))
+	
+	// Process each vertex again and write smoothed normal
+	for i in 0..<vertex_count {
+		// Read position again
+		pos_offset := i * 3 * size_of(f32)
+		pos_x := (cast(^f32)&mesh_data.vertex_buffer_bytes[pos_offset])^
+		pos_y := (cast(^f32)&mesh_data.vertex_buffer_bytes[pos_offset + size_of(f32)])^
+		pos_z := (cast(^f32)&mesh_data.vertex_buffer_bytes[pos_offset + 2*size_of(f32)])^
+		
+		// Create position key
+		epsilon : f32 = 0.0001
+		key := Position_Key{
+			x = f32(int(pos_x / epsilon)) * epsilon,
+			y = f32(int(pos_y / epsilon)) * epsilon,
+			z = f32(int(pos_z / epsilon)) * epsilon,
+		}
+		
+		// Average all normals at this position
+		normals_list := position_normals[key]
+		avg_normal := [3]f32{0, 0, 0}
+		
+		for normal in normals_list {
+			avg_normal.x += normal.x
+			avg_normal.y += normal.y
+			avg_normal.z += normal.z
+		}
+		
+		normal_count := f32(len(normals_list))
+		avg_normal.x /= normal_count
+		avg_normal.y /= normal_count
+		avg_normal.z /= normal_count
+		
+		// Normalize the averaged normal
+		length := math.sqrt(avg_normal.x * avg_normal.x + avg_normal.y * avg_normal.y + avg_normal.z * avg_normal.z)
+		if length > 0 {
+			avg_normal.x /= length
+			avg_normal.y /= length
+			avg_normal.z /= length
+		}
+		
+		// Write to smooth normal buffer
+		norm_offset := i * 3 * size_of(f32)
+		(cast(^f32)&smooth_normals[norm_offset])^ = avg_normal.x
+		(cast(^f32)&smooth_normals[norm_offset + size_of(f32)])^ = avg_normal.y
+		(cast(^f32)&smooth_normals[norm_offset + 2*size_of(f32)])^ = avg_normal.z
+	}
+	
+	// Clean up dynamic arrays
+	for _, &normals in position_normals {
+		delete(normals)
+	}
+	
+	return smooth_normals
 }
