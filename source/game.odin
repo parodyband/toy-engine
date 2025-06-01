@@ -201,9 +201,9 @@ draw_debug :: proc() {
 @export
 game_frame :: proc() {
 	dt := f32(sapp.frame_duration())
-	t  := f32(sapp.frame_count())
+	g.game_time += dt;
 
-	gameplay.on_update(dt, t, g)
+	gameplay.on_update(dt, g.game_time, g)
 
 	if inp.get_key_down(.F1) {
 		g.toggle_debug = !g.toggle_debug
