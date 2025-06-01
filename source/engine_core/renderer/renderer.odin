@@ -18,7 +18,11 @@ add_mesh_to_render_queue :: proc(
 }
 
 @(private="file")
-bind_opaque_render_props :: proc(mesh_renderer : Mesh_Renderer, shadow_resources : ^Shadow_Pass_Resources, draw_call : ^Draw_Call){
+bind_opaque_render_props :: proc(
+	mesh_renderer : Mesh_Renderer,
+	shadow_resources : ^Shadow_Pass_Resources,
+	draw_call : ^Draw_Call,
+){
 	// Set the renderer field
 	draw_call.renderer = mesh_renderer
 	
@@ -151,8 +155,8 @@ bind_shadow_render_props :: proc(mesh_renderer : Mesh_Renderer, draw_call : ^Dra
 			pixel_format = .DEPTH,
 			write_enabled = true,
 			compare = .LESS_EQUAL,
-			bias = 0.5,
-			bias_slope_scale = 1.0,
+			bias = 0.005,
+			bias_slope_scale = 2.0,
 		},
 		label = "shadow-pipeline",
 	})

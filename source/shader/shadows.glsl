@@ -138,8 +138,8 @@ float calculate_pcf_shadow_4x4(texture2D shadow_texture, sampler shadow_sampler,
 }
 
 float calculate_shadow_bias(vec3 normal, vec3 light_dir) {
-    const float min_bias = 0.0001;
-    const float max_bias = 0.001;
+    const float min_bias = 0.0005;
+    const float max_bias = 0.005;
     
     float cos_angle = dot(normal, light_dir);
     return max(max_bias * (1.0 - cos_angle), min_bias);
@@ -154,7 +154,21 @@ float calculate_shadow(
     vec2 frag_coord
 ) {
     vec3 proj_coords = light_space_pos.xyz / light_space_pos.w;
-    vec3 shadow_coords = vec3((proj_coords.xy + 1.0) * 0.5, proj_coords.z);
+    
+    // Transform from NDC [-1,1] to texture space [0,1]
+    vec3 shadow_coords;
+    shadow_coords.xy = (proj_coords.xy + 1.0) * 0.5;
+    
+    // Map NDC Z from [-1,1] to depth texture space [0,1]
+    // This is required for both orthographic and perspective projections because depth values stored in the shadow map are in the [0,1] range.
+    shadow_coords.z = proj_coords.z;
+    
+    // Check if shadow coordinates are outside the shadow map bounds
+    if (shadow_coords.x < 0.0 || shadow_coords.x > 1.0 ||
+        shadow_coords.y < 0.0 || shadow_coords.y > 1.0 ||
+        shadow_coords.z < 0.0 || shadow_coords.z > 1.0) {
+        return 1.0; // No shadow if outside bounds
+    }
     
     float bias = calculate_shadow_bias(normal, light_dir);
     

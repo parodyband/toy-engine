@@ -390,6 +390,11 @@ draw_wire_cube_immediate :: proc(transform: trans.Transform, color: [4]f32) {
 }
 
 // Draw orthographic frustum bounds for shadow mapping
+// The frustum layout mirrors compute_ortho_projection (forward-only):
+// left/right  = ±bounds.width / 2
+// bottom/top  = ±bounds.height / 2
+// near        = 0 (just in front of the light)
+// far         =  bounds.half_depth
 draw_ortho_frustum :: proc(position: [3]f32, rotation: [3]f32, bounds: ren.Bounds, color: [4]f32, debug_data: ^[dynamic]Debug_Draw_Call, depth_test: Depth_Test_Mode = .Off, show_full_volume: bool = false) {
 	// Calculate the 8 corners of the orthographic frustum in view space
 	// This matches compute_centered_ortho_projection which uses:

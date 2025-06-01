@@ -96,18 +96,19 @@ game_init :: proc() {
 			scale    = { 1, 1, 1},
 		},
 		bounds = {
-			height = 60,
-			width  = 60,
+			height = 40,
+			width  = 40,
 			half_depth = 75,
 		},
 	})
 
 	deb.init(&g.debug_pipelines)
 
-	add_mesh_by_name("assets/monkey.glb", {-10,10,-10})
-	add_mesh_by_name("assets/car.glb")
-	add_mesh_by_name("assets/1x1 cube.glb")
-	add_mesh_by_name("assets/floor.glb")
+	//add_mesh_by_name("assets/monkey.glb", {-10,10,-10})
+	//add_mesh_by_name("assets/car.glb")
+	add_mesh_by_name("assets/Tinker.glb", {-5,5,-10})
+	//add_mesh_by_name("assets/1x1 cube.glb")
+	add_mesh_by_name("assets/floor.glb", {0,-10,0})
 }
 
 add_mesh_by_name :: proc(path : string, position : [3]f32 = {0,0,0}) {

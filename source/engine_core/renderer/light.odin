@@ -22,7 +22,7 @@ Directional_Light :: struct {
 get_light_view_proj :: proc(light : Light) -> Mat4 {
     vp : Mat4
     #partial switch light_value in light {
-        case Directional_Light: vp = compute_centered_ortho_projection(
+        case Directional_Light: vp = compute_ortho_projection(
             light_value.transform.position,
 			light_value.transform.rotation,
 			light_value.bounds,

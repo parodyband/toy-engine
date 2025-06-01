@@ -33,7 +33,7 @@ void main() {
     frag_pos = model * pos;
     frag_norm = normalize(mat3(model) * normal.xyz);
     view_position = view_pos;
-    direct_light_pos = direct_light_mvp * frag_pos;
+    direct_light_pos = direct_light_mvp * pos;
     
     #if !SOKOL_GLSL
         direct_light_pos.y = -direct_light_pos.y;
