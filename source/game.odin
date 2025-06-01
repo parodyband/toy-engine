@@ -32,6 +32,8 @@ game_app_default_desc :: proc() -> sapp.Desc {
 		icon = { sokol_default = false },
 		logger = { func = slog.func },
 		html5_update_document_title = true,
+		swap_interval = 0,
+		high_dpi = true,
 	}
 }
 
@@ -380,7 +382,7 @@ force_reset: bool
 @export
 game_event :: proc(event: ^sapp.Event) {
 	#partial switch event.type {
-	 case .MOUSE_MOVE:
+	case .MOUSE_MOVE:
         inp.process_mouse_move(event.mouse_dx, event.mouse_dy)
             
 	case .KEY_DOWN:
@@ -398,6 +400,22 @@ game_event :: proc(event: ^sapp.Event) {
 		
 	case .MOUSE_UP:
 		inp.process_mouse_button_up(event.mouse_button)
+		
+	case .TOUCHES_BEGAN:
+		// Treat first touch as left mouse button down
+		if event.num_touches > 0 {
+			inp.process_mouse_button_down(.LEFT)
+		}
+		
+	case .TOUCHES_ENDED:
+		// Treat first touch end as left mouse button up
+		if event.num_touches > 0 {
+			inp.process_mouse_button_up(.LEFT)
+		}
+		
+	case .TOUCHES_MOVED:
+		// Touch movement could be handled here if needed
+		// For now, we only handle touch begin/end as mouse clicks
 	}
 }
 

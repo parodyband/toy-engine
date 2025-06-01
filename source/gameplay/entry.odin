@@ -17,10 +17,21 @@ Float :: f32
 
 Tinker     : ^ren.Entity
 Tinker_Key : ^ren.Entity
+Saw_Arm    : ^ren.Entity
+Saw_Blade  : ^ren.Entity
+
+Obstacle :: struct {
+    Saw_Blade : [dynamic]^ren.Entity,
+    Saw_Arm   : ^ren.Entity,
+}
 
 on_load :: proc(memory : ^common.Game_Memory) {
     Tinker     = ren.create_entity_by_mesh_path("assets/Tinker.glb",     &memory.render_queue, &memory.shadow_resources, {0,0,0})
 	Tinker_Key = ren.create_entity_by_mesh_path("assets/Tinker_Key.glb", &memory.render_queue, &memory.shadow_resources)
+
+    Saw_Arm    = ren.create_entity_by_mesh_path("assets/saw_arm.glb", &memory.render_queue, &memory.shadow_resources, {0,0,10})
+    Saw_Blade  = ren.create_entity_by_mesh_path("assets/saw_blade.glb", &memory.render_queue, &memory.shadow_resources, {0,0,10})
+
     Tinker_Key.transform.parent = &Tinker.transform
 }
 
@@ -105,41 +116,37 @@ on_awake  :: proc(memory : ^common.Game_Memory) {
 }
 
 time_counter :f32 = 0
-tinker_velocity :f32 = 0  // Add velocity variable for flappy bird physics
+tinker_velocity :f32 = 0 
 
 on_update :: proc(delta_time : f32, time : f32, memory : ^common.Game_Memory) {
     // update_flycam(delta_time, &memory.main_camera)
     if inp.GetKey(.ESCAPE) do sapp.quit()
 
+    Saw_Blade.transform.rotation.x += delta_time * 200
     Tinker_Key.transform.rotation.z += delta_time * 600
-    // Flappy bird physics constants
-    gravity: f32 = -45.0        // Downward acceleration
-    jump_force: f32 = 20.0       // Upward velocity when jumping
-    max_fall_speed: f32 = -30.0 // Terminal velocity
-    max_jump_speed: f32 = 25.0  // Maximum upward velocity
+
+    gravity: f32        = -45.0  // Downward acceleration
+    jump_force: f32     = +20.0   // Upward velocity when jumping
+    max_fall_speed: f32 = -30.0  // Terminal velocity
+    max_jump_speed: f32 = +25.0   // Maximum upward velocity
     
-    // Apply gravity to velocity
     tinker_velocity += gravity * delta_time
     
-    // Handle jump input (flappy bird style)
-    if inp.get_key_down(.SPACE) {        
-        tinker_velocity = jump_force  // Set velocity directly for responsive feel
+    if inp.get_mouse_down(.LEFT) {        
+        tinker_velocity = jump_force
     }
     
-    // Clamp velocity to reasonable limits
     tinker_velocity = linalg.clamp(tinker_velocity, max_fall_speed, max_jump_speed)
     
-    // Apply velocity to position
     Tinker.transform.position.y += tinker_velocity * delta_time
     target_rotation_x := linalg.clamp(tinker_velocity * 3.0, -30.0, 30.0)
     
-    // Smooth rotation interpolation for natural feel
     rotation_smooth_speed: f32 = 12.0
     Tinker.transform.rotation.x = linalg.lerp(Tinker.transform.rotation.x, target_rotation_x, delta_time * rotation_smooth_speed)
     
-    // Optional: Keep character above ground (adjust as needed)
     if Tinker.transform.position.y < -5.0 {
         Tinker.transform.position.y = -5.0
-        tinker_velocity = 0  // Stop velocity when hitting ground
+        tinker_velocity = 0 
     }
 }
+

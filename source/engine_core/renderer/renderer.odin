@@ -5,12 +5,14 @@ import        "core:fmt"
 import        "core:c"
 import ass    "../asset"
 import gltf   "../../lib/glTF2"
+import trans  "../transform"
 
 create_entity_by_mesh_path :: proc(
 		path : string,
 		render_queue : ^[dynamic]Draw_Call,
 		shadow_pass_resources : ^Shadow_Pass_Resources,
 		position : [3]f32 = {0,0,0},
+		spawn : bool = false,
 ) -> ^Entity{
 
 	glb_data      := ass.load_glb_data_from_file(path)
@@ -43,18 +45,62 @@ add_mesh_to_render_queue :: proc(
 	render_queue       : ^[dynamic]Draw_Call,
 	shadow_resources   : ^Shadow_Pass_Resources,
 ) -> ^Entity {
-
-	draw_call : Draw_Call
-	draw_call.entity = Entity{
+	// Create a temporary entity with the mesh renderer
+	temp_entity := Entity{
 		mesh_renderer = mesh_renderer,
+		transform = {
+			position = {0,0,0},
+			rotation = {0,0,0},
+			scale    = {1,1,1},
+		},
 	}
 
+	// Create draw call and bind render properties
+	draw_call : Draw_Call
+	draw_call.entity = temp_entity
+	
 	bind_opaque_render_props(shadow_resources, &draw_call)
 	bind_outline_render_props(&draw_call)
 	bind_shadow_render_props(&draw_call)
+	
+	// Set the index and add to render queue
+	draw_call.index = len(render_queue)
+	append(render_queue, draw_call)
+	return &render_queue[len(render_queue)-1].entity
+}
+
+instantiate_entity :: proc(
+	entity : ^Entity,
+	render_queue : ^[dynamic]Draw_Call,
+	transform : trans.Transform = {
+		position = {0,0,0},
+		rotation = {0,0,0},
+		scale    = {1,1,1},
+	}
+) -> ^Entity {
+	// Create a copy of the entity with the given transform
+	new_entity := entity^
+	new_entity.transform = transform
+
+	// Add to render queue
+	draw_call : Draw_Call
+	draw_call.entity = new_entity
+	draw_call.index = len(render_queue)
 
 	append(render_queue, draw_call)
 	return &render_queue[len(render_queue)-1].entity
+}
+
+destroy_entity :: proc(
+	entity : ^Entity,
+	render_queue : ^[dynamic]Draw_Call,
+) {
+	for i := 0; i < len(render_queue); i += 1 {
+		if &render_queue[i].entity == entity {
+			ordered_remove(render_queue, i)
+			break
+		}
+	}
 }
 
 @(private="file")

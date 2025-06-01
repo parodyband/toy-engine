@@ -184,7 +184,7 @@ layout(binding=0) uniform vs_outline_params {
 in vec4 pos;
 in vec4 normal;
 
-const float OUTLINE_PIXELS = 4.0;
+const float OUTLINE_PIXELS = 2.0;
 
 void main() {
     // Transform position to world space
