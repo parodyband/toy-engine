@@ -129,7 +129,9 @@ bind_opaque_render_props :: proc( rendering_resources : ^Rendering_Resources, dr
 
 	assert(len(mesh_renderer.mesh.index_buffer_bytes) > 0, "Error: Index Buffer Count for Mesh is 0")
 	draw_call.opaque.bindings.index_buffer = sg.make_buffer({
-		type = .INDEXBUFFER,
+		usage = {
+			index_buffer = true,
+		},
 		data = { ptr = raw_data(mesh_renderer.mesh.index_buffer_bytes),  size = uint(len(mesh_renderer.mesh.index_buffer_bytes)) },
 	})
 
@@ -215,7 +217,9 @@ bind_outline_render_props :: proc(draw_call : ^Draw_Call,){
 
 	assert(len(mesh_renderer.mesh.index_buffer_bytes) > 0, "Error: Index Buffer Count for Mesh is 0")
 	draw_call.outline.bindings.index_buffer = sg.make_buffer({
-		type = .INDEXBUFFER,
+		usage = {
+			index_buffer = true,
+		},
 		data = { ptr = raw_data(mesh_renderer.mesh.index_buffer_bytes),  size = uint(len(mesh_renderer.mesh.index_buffer_bytes)) },
 	})
 
@@ -253,7 +257,9 @@ bind_shadow_render_props :: proc(draw_call : ^Draw_Call,) {
 
 	assert(len(mesh_renderer.mesh.index_buffer_bytes) > 0, "Error: Index Buffer Count for Mesh is 0")
 	draw_call.shadow.bindings.index_buffer = sg.make_buffer({
-		type = .INDEXBUFFER,
+		usage = {
+			index_buffer = true,
+		},
 		data = { ptr = raw_data(mesh_renderer.mesh.index_buffer_bytes),  size = uint(len(mesh_renderer.mesh.index_buffer_bytes)) },
 	})
 

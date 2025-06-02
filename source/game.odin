@@ -59,7 +59,9 @@ game_init :: proc() {
 	shadow_res := &g.rendering_resources.shadow_resources
 
 	shadow_res.shadow_map = sg.make_image({
-		render_target = true,
+		usage = {
+			render_attachment = true,
+		},
 		width         = 1024,
 		height        = 1024,
 		pixel_format  = .DEPTH,

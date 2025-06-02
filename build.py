@@ -932,10 +932,23 @@ def compile_sokol():
 	print("Building Sokol C libraries...")
 
 	if IS_WINDOWS:
-		if shutil.which("cl.exe") is not None:
+		# Try to find Visual Studio and set up the environment automatically
+		vs_path = r"C:\Program Files\Microsoft Visual Studio\2022\Community"
+		vcvars_path = os.path.join(vs_path, "VC", "Auxiliary", "Build", "vcvars64.bat")
+		
+		if os.path.exists(vcvars_path):
+			# Run the build script with vcvars64 environment
+			print("Setting up Visual Studio x64 environment...")
+			cmd = f'cmd /c "call "{vcvars_path}" && build_clibs_windows.cmd"'
+			execute(cmd)
+		elif shutil.which("cl.exe") is not None:
+			# cl.exe is already in PATH, just run the build script
 			execute("build_clibs_windows.cmd")
 		else:
-			print("cl.exe not in PATH. Try re-running build.py with flag -compile-sokol from a Visual Studio command prompt.")
+			print("Error: Could not find Visual Studio 2022 or cl.exe in PATH.")
+			print("Please install Visual Studio 2022 Community or run from a Visual Studio command prompt.")
+			os.chdir(owd)
+			return
 
 		if emsdk_env:
 			execute(emsdk_env + " && build_clibs_wasm.bat")

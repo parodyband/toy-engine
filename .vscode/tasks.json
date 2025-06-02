@@ -164,15 +164,15 @@
     {
       "label": "Update Sokol",
       "type": "shell",
-      "command": "cmd",
-      "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -update-sokol && exit"],
+      "command": "python",
+      "args": ["build.py", "-update-sokol"],
       "group": "build",
       "options": {
         "cwd": "${workspaceFolder}"
       },
       "windows": {
-        "command": "cmd",
-        "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -update-sokol && exit"]
+        "command": "python",
+        "args": ["build.py", "-update-sokol"]
       },
       "linux": {
         "command": "python3",
@@ -186,15 +186,20 @@
     {
       "label": "Compile Sokol",
       "type": "shell",
-      "command": "cmd",
-      "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -compile-sokol && exit"],
+      "command": "python build.py -compile-sokol",
       "group": "build",
       "options": {
         "cwd": "${workspaceFolder}"
       },
       "windows": {
-        "command": "cmd",
-        "args": ["/k", "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -compile-sokol && exit"]
+        "options": {
+          "cwd": "${workspaceFolder}",
+          "shell": {
+            "executable": "cmd.exe",
+            "args": ["/d", "/c"]
+          }
+        },
+        "command": "call \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" && python build.py -compile-sokol"
       },
       "linux": {
         "command": "python3",
