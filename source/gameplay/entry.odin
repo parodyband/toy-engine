@@ -8,31 +8,47 @@ import inp "../engine_core/input"
 
 import "../common"
 
-// import trans "../engine_core/transform"
-
 Mat4  :: matrix[4,4]f32
 Vec3  :: [3]f32
 Vec2  :: [2]f32
 Float :: f32
 
-Tinker     : ^ren.Entity
-Tinker_Key : ^ren.Entity
-Saw_Arm    : ^ren.Entity
-Saw_Blade  : ^ren.Entity
-
-Obstacle :: struct {
-    Saw_Blade : [dynamic]^ren.Entity,
-    Saw_Arm   : ^ren.Entity,
-}
-
-on_load :: proc(memory : ^common.Game_Memory) {
-    Tinker     = ren.create_entity_by_mesh_path("assets/Tinker.glb",     &memory.render_queue, &memory.rendering_resources, {0,0,0})
-	Tinker_Key = ren.create_entity_by_mesh_path("assets/Tinker_Key.glb", &memory.render_queue, &memory.rendering_resources)
-
-    Saw_Arm    = ren.create_entity_by_mesh_path("assets/saw_arm.glb",    &memory.render_queue, &memory.rendering_resources, {0,0,10})
-    Saw_Blade  = ren.create_entity_by_mesh_path("assets/saw_blade.glb",  &memory.render_queue, &memory.rendering_resources, {0,0,10})
-
-    Tinker_Key.transform.parent = &Tinker.transform
+on_load :: proc(memory: ^common.Game_Memory) {
+	// Create entities using the new data-oriented system
+	memory.modern_tinker = ren.create_entity_from_mesh_file("assets/Tinker.glb", &memory.rendering_resources, {
+		position = {0, 0, 0},
+		rotation = {0, 0, 0}, 
+		scale = {1, 1, 1},
+		parent = nil,
+		child = nil,
+	})
+	
+	memory.modern_tinker_key = ren.create_entity_from_mesh_file("assets/Tinker_Key.glb", &memory.rendering_resources, {
+		position = {0, 0, 0},
+		rotation = {0, 0, 0}, 
+		scale = {1, 1, 1},
+		parent = nil,
+		child = nil,
+	})
+	
+	memory.modern_saw_arm = ren.create_entity_from_mesh_file("assets/saw_arm.glb", &memory.rendering_resources, {
+		position = {0, 0, 10},
+		rotation = {0, 0, 0}, 
+		scale = {1, 1, 1},
+		parent = nil,
+		child = nil,
+	})
+	
+	memory.modern_saw_blade = ren.create_entity_from_mesh_file("assets/saw_blade.glb", &memory.rendering_resources, {
+		position = {0, 0, 10},
+		rotation = {0, 0, 0}, 
+		scale = {1, 1, 1},
+		parent = nil,
+		child = nil,
+	})
+	
+	// Set up parent-child relationships
+	ren.set_entity_parent(&memory.rendering_resources, memory.modern_tinker_key, memory.modern_tinker)
 }
 
 update_flycam :: proc(delta_time: f32, camera : ^ren.Camera) {
@@ -99,8 +115,6 @@ update_flycam :: proc(delta_time: f32, camera : ^ren.Camera) {
 	}
 
 	// Normalize the movement vector and apply speed
-	// Only move if the length of the vector is greater than a small threshold
-
 	if linalg.length(move) > 0.001 {
         move = linalg.normalize(move)
         camera.position += move * move_speed * delta_time
@@ -115,38 +129,47 @@ on_awake  :: proc(memory : ^common.Game_Memory) {
 	}
 }
 
-time_counter :f32 = 0
-tinker_velocity :f32 = 0 
-
 on_update :: proc(delta_time : f32, time : f32, memory : ^common.Game_Memory) {
     // update_flycam(delta_time, &memory.main_camera)
     if inp.GetKey(.ESCAPE) do sapp.quit()
 
-    Saw_Blade.transform.rotation.x += delta_time * 200
-    Tinker_Key.transform.rotation.z += delta_time * 600
-
-    gravity: f32        = -60.0
-    jump_force: f32     = +25.0
-    max_fall_speed: f32 = -60.0
-    max_jump_speed: f32 = +25.0
-    
-    tinker_velocity += gravity * delta_time
-    
-    if inp.get_mouse_down(.LEFT) {        
-        tinker_velocity = jump_force
+    // Animate entities using the new ECS system
+    tinker_transform := ren.get_entity_transform(&memory.rendering_resources, memory.modern_tinker)
+    if tinker_transform != nil {
+        gravity: f32        = -60.0
+        jump_force: f32     = +25.0
+        max_fall_speed: f32 = -60.0
+        max_jump_speed: f32 = +25.0
+        
+        memory.tinker_velocity += gravity * delta_time
+        
+        if inp.get_mouse_down(.LEFT) {        
+            memory.tinker_velocity = jump_force
+        }
+        
+        memory.tinker_velocity = linalg.clamp(memory.tinker_velocity, max_fall_speed, max_jump_speed)
+        
+        tinker_transform.position.y += memory.tinker_velocity * delta_time
+        target_rotation_x := linalg.clamp(memory.tinker_velocity * 3.0, -30.0, 30.0)
+        
+        rotation_smooth_speed: f32 = 12.0
+        tinker_transform.rotation.x = linalg.lerp(tinker_transform.rotation.x, target_rotation_x, delta_time * rotation_smooth_speed)
+        
+        if tinker_transform.position.y < -5.0 {
+            tinker_transform.position.y = -5.0
+            memory.tinker_velocity = 0 
+        }
     }
     
-    tinker_velocity = linalg.clamp(tinker_velocity, max_fall_speed, max_jump_speed)
+    // Animate other entities
+    saw_blade_transform := ren.get_entity_transform(&memory.rendering_resources, memory.modern_saw_blade)
+    if saw_blade_transform != nil {
+        saw_blade_transform.rotation.x += delta_time * 200
+    }
     
-    Tinker.transform.position.y += tinker_velocity * delta_time
-    target_rotation_x := linalg.clamp(tinker_velocity * 3.0, -30.0, 30.0)
-    
-    rotation_smooth_speed: f32 = 12.0
-    Tinker.transform.rotation.x = linalg.lerp(Tinker.transform.rotation.x, target_rotation_x, delta_time * rotation_smooth_speed)
-    
-    if Tinker.transform.position.y < -5.0 {
-        Tinker.transform.position.y = -5.0
-        tinker_velocity = 0 
+    tinker_key_transform := ren.get_entity_transform(&memory.rendering_resources, memory.modern_tinker_key)
+    if tinker_key_transform != nil {
+        tinker_key_transform.rotation.z += delta_time * 600
     }
 }
 

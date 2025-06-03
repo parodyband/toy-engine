@@ -29,5 +29,3 @@ Texture_Dimensions :: struct {
     width  : i32,
     height : i32,
 }
-
-Texture_Pool :: map[u64]Texture

@@ -52,11 +52,14 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
+	// Initialize new rendering resources
+	ren.init_rendering_resources(&g.rendering_resources)
+
 	///////////////////////////////////////////////
 	////////////// SHADOW RESOURCES ///////////////
 	///////////////////////////////////////////////
 
-	shadow_res := &g.rendering_resources.shadow_resources
+	shadow_res := &g.rendering_resources.shadows
 
 	shadow_res.shadow_map = sg.make_image({
 		usage = {
@@ -204,30 +207,6 @@ game_frame :: proc() {
 		g.toggle_debug = !g.toggle_debug
 	}
 
-	shadow_pass_action := sg.Pass_Action {
-		depth = {
-			load_action  = .CLEAR,
-			store_action = .STORE,
-			clear_value  = 1,
-		},
-	}
-
-	opaque_pass_action := sg.Pass_Action {
-		colors = {
-			0 = { load_action = .CLEAR, clear_value = {.2,.2,.2,1} },
-		},
-	}
-
-	outline_pass_action := sg.Pass_Action {
-		colors = {
-			0 = { load_action = .DONTCARE, clear_value = {.2,.2,.2,1} },
-		},
-		depth = {
-			load_action = .LOAD,
-			store_action = .DONTCARE,
-		},
-	}
-
 	debug_pass_action := sg.Pass_Action {
 		colors = {
 			0 = { load_action = .DONTCARE },
@@ -247,45 +226,42 @@ game_frame :: proc() {
 
 	deb.draw_grid({0,0,0}, {0,0,0},50,50,{.4,.4,.4,.8}, &g.debug_render_queue)
 
-	// Directional Shadow Pass
-	{
-		if !direct_light_found do return
-		sg.begin_pass({ action = shadow_pass_action, attachments = g.rendering_resources.shadow_resources.shadow_attachments })
+	// Render with the new system
+	render_frame_new(directional_light, direct_light_found)
 
-		view_projection := ren.get_light_view_proj(directional_light)
-
-		g.light_view_projection = view_projection
-
-		for i in 0..<len(g.render_queue) {
-
-			model := trans.compute_model_matrix(g.render_queue[i].entity.transform)
-
-			vs_shadow_params := shader.Vs_Shadow_Params {
-				view_projection = view_projection,
-				model           = model,
-			}
-			
-			sg.apply_pipeline(g.render_queue[i].shadow.pipeline)
-			sg.apply_bindings(g.render_queue[i].shadow.bindings)
-			sg.apply_uniforms(shader.UB_vs_shadow_params, { ptr = &vs_shadow_params, size = size_of(vs_shadow_params) })
-			sg.draw(0, i32(g.render_queue[i].index_count), 1)
-		}
-
-		deb.draw_ortho_frustum(
-				directional_light.transform.position,
-				directional_light.transform.rotation,
-				directional_light.bounds,
-				{1, 1, 0, 1},  // Yellow color
-				&g.debug_render_queue,
-				.Off,  // No depth test so we can always see it
-			)
-
+	if g.toggle_debug {
+		sg.begin_pass( { action = debug_pass_action, swapchain = sglue.swapchain() })
+		draw_debug()
 		sg.end_pass()
 	}
+
+	sg.commit()
+
+	// Clear input state changes for next frame
+	inp.clear_frame_states()
+
+	free_all(context.temp_allocator)
+}
+
+render_frame_new :: proc(directional_light: ren.Directional_Light, direct_light_found: bool) {
+	if !direct_light_found do return
 	
+	// Submit entities to draw queue
+	draw_queue: [dynamic]ren.Draw_Call
+	defer delete(draw_queue)
+	
+	ren.submit_entities_for_rendering(&g.rendering_resources, &draw_queue, g.main_camera)
+	
+	light_view_projection := ren.get_light_view_proj(directional_light)
+	g.light_view_projection = light_view_projection
+	
+	// Shadow pass
+	ren.render_shadow_pass_modern(&g.rendering_resources, draw_queue[:], light_view_projection)
+	
+	// Build light parameters
 	point_light_params       : shader.Fs_Point_Light
 	directional_light_params : shader.Fs_Directional_Light
-
+	
 	for i in 0..<len(g.lights) {
 		if i > len(point_light_params.color) do continue
 		
@@ -312,65 +288,14 @@ game_frame :: proc() {
 				deb.draw_transform_axes(directional_light.transform, 1, &g.debug_render_queue)
 		}
 	}
-
-	//Opaque Pass
-	{
-		sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
-		for i in 0..<len(g.render_queue) {
-			model := trans.compute_model_matrix(g.render_queue[i].entity.transform)
-			vs_params := shader.Vs_Params {
-				view_projection  = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation, g.main_camera.fov),
-				model            = model,
-				view_pos         = g.main_camera.position,
-				direct_light_mvp = ren.get_light_view_proj(directional_light) * model,
-			}
-			sg.apply_pipeline(g.render_queue[i].opaque.pipeline)
-			sg.apply_bindings(g.render_queue[i].opaque.bindings)
-			sg.apply_uniforms(shader.UB_vs_params,            { ptr = &vs_params,                size = size_of(vs_params) })
-			sg.apply_uniforms(shader.UB_fs_point_light,       { ptr = &point_light_params,       size = size_of(point_light_params) })
-			sg.apply_uniforms(shader.UB_fs_directional_light, { ptr = &directional_light_params, size = size_of(directional_light_params) })
-			sg.draw(0, i32(g.render_queue[i].index_count), 1)
-		}
-
-		sg.end_pass()
-	}
-
 	
-	//Outline Pass
-	{
-		sg.begin_pass({ action = outline_pass_action, swapchain = sglue.swapchain() })
-		for i in 0..<len(g.render_queue) {
-			model := trans.compute_model_matrix(g.render_queue[i].entity.transform)
-			vs_outline_params := shader.Vs_Outline_Params {
-				view_projection = ren.compute_view_projection(g.main_camera.position, g.main_camera.rotation, g.main_camera.fov),
-				model           = model,
-				view_pos        = g.main_camera.position,
-				pixel_factor    = 0.001,
-			}
-			sg.apply_pipeline(g.render_queue[i].outline.pipeline)
-			sg.apply_bindings(g.render_queue[i].outline.bindings)
-			sg.apply_uniforms(shader.UB_vs_outline_params, { ptr = &vs_outline_params, size = size_of(vs_outline_params) })
-			sg.draw(0, i32(g.render_queue[i].index_count), 1)
-		}
-
-		sg.end_pass()
-	}
-
-	if g.toggle_debug {
-		sg.begin_pass( { action = debug_pass_action, swapchain = sglue.swapchain() })
-		draw_debug()
-		sg.end_pass()
-	}
-
-	sg.commit()
-
-	// Clear input state changes for next frame
-	inp.clear_frame_states()
-
-	free_all(context.temp_allocator)
+	// Opaque pass
+	ren.render_opaque_pass_modern(&g.rendering_resources, draw_queue[:], g.main_camera, 
+		light_view_projection, point_light_params, directional_light_params)
+	
+	// Outline pass
+	ren.render_outline_pass_modern(&g.rendering_resources, draw_queue[:], g.main_camera)
 }
-
-force_reset: bool
 
 @export
 game_event :: proc(event: ^sapp.Event) {
@@ -444,5 +369,5 @@ game_hot_reloaded :: proc(mem: rawptr) {
 
 @(export)
 game_force_restart :: proc() -> bool {
-	return force_reset
+	return g.force_reset
 }
