@@ -60,6 +60,26 @@ create_entity_from_mesh_and_material :: proc(
     return entity_id
 }
 
+// Fast entity creation using pre-loaded mesh/material IDs (no file I/O)
+create_entity_from_ids :: proc(
+    resources: ^Rendering_Resources,
+    mesh_id: u16,
+    material_id: u16,
+    transform: trans.Transform,
+) -> Entity_Id {
+    // Create entity directly using existing resource IDs
+    entity_id := create_entity(&resources.entities)
+    idx := entity_id.index
+    
+    // Set components (no asset loading, just ID assignment)
+    resources.entities.transforms[idx] = transform
+    resources.entities.mesh_id[idx] = mesh_id
+    resources.entities.material_id[idx] = material_id
+    resources.entities.pipeline_id[idx] = get_default_pipeline_id()
+    
+    return entity_id
+}
+
 // Get transform of entity
 get_entity_transform :: proc(resources: ^Rendering_Resources, entity_id: Entity_Id) -> ^trans.Transform {
     if !is_entity_valid(&resources.entities, entity_id) do return nil

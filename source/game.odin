@@ -33,7 +33,7 @@ game_app_default_desc :: proc() -> sapp.Desc {
 		logger = { func = slog.func },
 		html5_update_document_title = true,
 		swap_interval = 0,
-		high_dpi = true,
+		high_dpi = false,
 	}
 }
 
