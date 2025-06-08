@@ -220,7 +220,7 @@ game_frame :: proc() {
 
 	outline_pass_action := sg.Pass_Action {
 		colors = {
-			0 = { load_action = .DONTCARE, clear_value = {.2,.2,.2,1} },
+			0 = { load_action = .LOAD},
 		},
 		depth = {
 			load_action = .LOAD,
@@ -313,9 +313,9 @@ game_frame :: proc() {
 		}
 	}
 
+	sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
 	//Opaque Pass
 	{
-		sg.begin_pass({ action = opaque_pass_action, swapchain = sglue.swapchain() })
 		for i in 0..<len(g.render_queue) {
 			model := trans.compute_model_matrix(g.render_queue[i].entity.transform)
 			vs_params := shader.Vs_Params {
@@ -331,14 +331,11 @@ game_frame :: proc() {
 			sg.apply_uniforms(shader.UB_fs_directional_light, { ptr = &directional_light_params, size = size_of(directional_light_params) })
 			sg.draw(0, i32(g.render_queue[i].index_count), 1)
 		}
-
-		sg.end_pass()
 	}
 
 	
 	//Outline Pass
 	{
-		sg.begin_pass({ action = outline_pass_action, swapchain = sglue.swapchain() })
 		for i in 0..<len(g.render_queue) {
 			model := trans.compute_model_matrix(g.render_queue[i].entity.transform)
 			vs_outline_params := shader.Vs_Outline_Params {
@@ -353,8 +350,8 @@ game_frame :: proc() {
 			sg.draw(0, i32(g.render_queue[i].index_count), 1)
 		}
 
-		sg.end_pass()
 	}
+	sg.end_pass()
 
 	if g.toggle_debug {
 		sg.begin_pass( { action = debug_pass_action, swapchain = sglue.swapchain() })
