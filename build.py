@@ -178,7 +178,7 @@ def main():
 			
 			# Launch the app
 			package_name = "com.toyengine.game"
-			activity_name = "android.app.NativeActivity"
+			activity_name = ".GameActivity"
 			print(f"Launching {package_name}...")
 			launch_result = subprocess.run(["adb", "shell", "am", "start", "-n", f"{package_name}/{activity_name}"], 
 										  capture_output=True, text=True)
@@ -194,8 +194,8 @@ def main():
 			print("\nShowing Android logs (press Ctrl+C to stop):")
 			print("-" * 60)
 			try:
-				# Filter logs by our app's tag
-				log_process = subprocess.Popen(["adb", "logcat", "ToyEngine:I", "*:S"], 
+				# Filter logs by our app's tag and Android runtime errors
+				log_process = subprocess.Popen(["adb", "logcat", "ToyEngine:V", "AndroidRuntime:E", "*:S"], 
 											  stdout=subprocess.PIPE, 
 											  stderr=subprocess.PIPE,
 											  universal_newlines=True,
@@ -1339,9 +1339,11 @@ def build_android():
 	package_name = "com.toyengine.game"
 	app_dir = os.path.join(out_dir, "app")
 	main_dir = os.path.join(app_dir, "src", "main")
+	java_src_dir = os.path.join(main_dir, "java", "com", "toyengine", "game")
 	jni_libs_dir = os.path.join(main_dir, "jniLibs", "arm64-v8a")
 	assets_dir = os.path.join(main_dir, "assets")
 	
+	make_dirs(java_src_dir)
 	make_dirs(jni_libs_dir)
 	make_dirs(assets_dir)
 
@@ -1449,6 +1451,56 @@ def build_android():
 
 	print("Generating Android project files...")
 	
+	# Create GameActivity.java to handle immersive mode correctly
+	game_activity_content = f'''package {package_name};
+
+import android.os.Bundle;
+import android.view.View;
+import android.app.NativeActivity;
+
+public class GameActivity extends NativeActivity {{
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {{
+        super.onCreate(savedInstanceState);
+        hideSystemUI();
+    }}
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {{
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {{
+            hideSystemUI();
+        }}
+    }}
+
+    private void hideSystemUI() {{
+        View decorView = getWindow().getDecorView();
+        decorView.setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN);
+    }}
+}}
+'''
+	with open(os.path.join(java_src_dir, "GameActivity.java"), "w") as f:
+		f.write(game_activity_content)
+
+	# Create res/values/styles.xml for fullscreen theme and display cutout support
+	res_dir = os.path.join(main_dir, "res")
+	values_dir = os.path.join(res_dir, "values")
+	make_dirs(values_dir)
+	styles_xml_content = f'''<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="GameTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>'''
+	with open(os.path.join(values_dir, "styles.xml"), "w") as f:
+		f.write(styles_xml_content)
+
 	# Create local.properties file with SDK path
 	sdk_path = find_android_sdk()
 	if sdk_path:
@@ -1509,6 +1561,7 @@ android {{
     }}
     sourceSets {{
         main {{
+            java.srcDirs = ['src/main/java']
             jniLibs.srcDirs = ['src/main/jniLibs']
             assets.srcDirs = ['src/main/assets']
         }}
@@ -1526,10 +1579,10 @@ android {{
     
     <application
         android:allowBackup="true"
-        android:label="{app_name}"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        android:label="{app_name}">
         
-        <activity android:name="android.app.NativeActivity"
+        <activity android:name=".GameActivity"
+            android:theme="@style/GameTheme"
             android:configChanges="orientation|keyboardHidden"
             android:exported="true">
             

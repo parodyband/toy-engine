@@ -9,6 +9,7 @@
 #include <GLES3/gl3.h>
 #include <string.h>
 #include <unistd.h>
+#include <jni.h>
 
 #define LOG_TAG "ToyEngine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
