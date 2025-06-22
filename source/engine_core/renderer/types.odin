@@ -19,19 +19,6 @@ Draw_Call_ID :: i16
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // OLD
 
 Draw_Call :: struct {

@@ -15,6 +15,14 @@ GLB_HEADER_SIZE :: size_of(GLB_Header)
 GLB_CHUNK_HEADER_SIZE :: size_of(GLB_Chunk_Header)
 GLTF_MIN_VERSION :: 2
 
+// Global file reader that can be overridden by platform-specific code (e.g., Android)
+@(private)
+g_file_reader: proc(file_name: string, allocator: mem.Allocator) -> (data: []byte, ok: bool)
+
+// Set a custom file reader (useful for Android asset manager)
+set_file_reader :: proc(reader: proc(file_name: string, allocator: mem.Allocator) -> (data: []byte, ok: bool)) {
+    g_file_reader = reader
+}
 
 /*
     Simple filepath dir: returns content before the last '/' or "." if no '/'.
@@ -61,10 +69,23 @@ _filepath_ext_simple :: proc(path: string) -> string {
 */
 @(require_results)
 load_from_file :: proc(file_name: string, allocator := context.allocator) -> (data: ^Data, err: Error) {
+    when ODIN_PLATFORM_SUBTARGET == .Android {
+        // On Android, add simple debug print
+        fmt.printfln("gltf2.load_from_file: Starting to load '%s'", file_name)
+    }
+    
+    // Implementation may allow relative paths
+    if file_name == "" {
+        return nil, GLTF_Error{type = .No_File, proc_name = #procedure, param = {name = "file_name"}}
+    }
+
     // Only call os.exists on non-WASM targets where it's reliable
     when !IS_WASM_TARGET {
-        if !os.exists(file_name) {
-            return nil, GLTF_Error{type = .No_File, proc_name = #procedure, param = {name = file_name}}
+        // Skip exists check on Android since it uses Asset Manager
+        when ODIN_PLATFORM_SUBTARGET != .Android {
+            if !os.exists(file_name) {
+                return nil, GLTF_Error{type = .No_File, proc_name = #procedure, param = {name = file_name}}
+            }
         }
     }
     // For WASM, we proceed directly to os.read_entire_file.
@@ -72,7 +93,12 @@ load_from_file :: proc(file_name: string, allocator := context.allocator) -> (da
 
     file_content: []byte
     ok: bool
-    file_content, ok = _read_entire_file(file_name, allocator)
+    // Use custom file reader if available (e.g., for Android)
+    if g_file_reader != nil {
+        file_content, ok = g_file_reader(file_name, allocator)
+    } else {
+        file_content, ok = _read_entire_file(file_name, allocator)
+    }
     if !ok {
         return nil, GLTF_Error{type = .Cant_Read_File, proc_name = #procedure, param = {name = file_name}}
     }

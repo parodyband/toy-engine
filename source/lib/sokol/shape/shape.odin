@@ -425,8 +425,8 @@ when ODIN_OS == .Windows {
         when DEBUG { foreign import sokol_shape_clib { "sokol_shape_linux_x64_gl_debug.so" } }
         else       { foreign import sokol_shape_clib { "sokol_shape_linux_x64_gl_release.so" } }
     } else {
-        when DEBUG { foreign import sokol_shape_clib { "sokol_shape_linux_x64_gl_debug.a" } }
-        else       { foreign import sokol_shape_clib { "sokol_shape_linux_x64_gl_release.a" } }
+        when DEBUG { foreign import sokol_shape_clib { "sokol_shape_android_arm64_gles3_debug.a", "system:log", "system:android" } }
+        else       { foreign import sokol_shape_clib { "sokol_shape_android_arm64_gles3_release.a", "system:log", "system:android" } }
     }
 } else when ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32 {
     // Feed sokol_shape_wasm_gl_debug.a or sokol_shape_wasm_gl_release.a into emscripten compiler.

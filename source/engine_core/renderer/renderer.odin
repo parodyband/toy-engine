@@ -1,7 +1,6 @@
 package renderer
 import        "../../shader"
 import sg     "../../lib/sokol/gfx"
-import        "core:fmt"
 import        "core:c"
 import ass    "../asset"
 import gltf   "../../lib/glTF2"
@@ -15,7 +14,11 @@ create_entity_by_mesh_path :: proc(
 		spawn : bool = false,
 	) -> ^Entity{
 
-	glb_data      := ass.load_glb_data_from_file(path)
+	glb_data := ass.load_glb_data_from_file(path)
+	if glb_data == nil {
+		return nil
+	}
+	
 	glb_mesh_data := ass.load_mesh_from_glb_data(glb_data)
 	glb_texture   := ass.load_texture_from_glb_data(glb_data)
 	
@@ -143,10 +146,6 @@ bind_opaque_render_props :: proc( rendering_resources : ^Rendering_Resources, dr
 	// Calculate expected size for RGBA8 format
 	expected_size := int(albedo_texture.dimensions.width) * int(albedo_texture.dimensions.height) * 4
 	actual_size := len(albedo_texture.mip_chain[0].final_pixels)
-	
-	fmt.printfln("Creating GPU texture: %dx%d, expected %d bytes, actual %d bytes",
-		albedo_texture.dimensions.width, albedo_texture.dimensions.height, 
-		expected_size, actual_size)
 	
 	assert(actual_size == expected_size, "Error: Texture size mismatch for RGBA8 format")
 

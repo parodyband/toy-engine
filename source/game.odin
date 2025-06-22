@@ -52,6 +52,11 @@ game_init :: proc() {
 		logger = { func = slog.func },
 	})
 
+	// Initialize sokol-gl for debug drawing
+	sgl.setup({
+		logger = { func = slog.func },
+	})
+
 	///////////////////////////////////////////////
 	////////////// SHADOW RESOURCES ///////////////
 	///////////////////////////////////////////////
@@ -114,15 +119,15 @@ draw_debug :: proc() {
 		b_depth: deb.Depth_Test_Mode
 		
 		switch data in a.data {
-			case deb.Line_Segment_Data: a_depth = data.depth_test
-			case deb.Wire_Sphere_Data:  a_depth = data.depth_test
-			case deb.Wire_Cube_Data:    a_depth = data.depth_test
+		case deb.Line_Segment_Data: a_depth = data.depth_test
+		case deb.Wire_Sphere_Data:  a_depth = data.depth_test
+		case deb.Wire_Cube_Data:    a_depth = data.depth_test
 		}
 		
 		switch data in b.data {
-			case deb.Line_Segment_Data: b_depth = data.depth_test
-			case deb.Wire_Sphere_Data:  b_depth = data.depth_test
-			case deb.Wire_Cube_Data:    b_depth = data.depth_test
+		case deb.Line_Segment_Data: b_depth = data.depth_test
+		case deb.Wire_Sphere_Data:  b_depth = data.depth_test
+		case deb.Wire_Cube_Data:    b_depth = data.depth_test
 		}
 		
 		return int(a_depth) < int(b_depth)
@@ -155,12 +160,12 @@ draw_debug :: proc() {
 	for i in 0..<len(g.debug_render_queue) {
 		depth_mode: deb.Depth_Test_Mode
 		switch data in g.debug_render_queue[i].data {
-			case deb.Line_Segment_Data:
-				depth_mode = data.depth_test
-			case deb.Wire_Sphere_Data:
-				depth_mode = data.depth_test
-			case deb.Wire_Cube_Data:
-				depth_mode = data.depth_test
+		case deb.Line_Segment_Data:
+			depth_mode = data.depth_test
+		case deb.Wire_Sphere_Data:
+			depth_mode = data.depth_test
+		case deb.Wire_Cube_Data:
+			depth_mode = data.depth_test
 		}
 		
 		if depth_mode != current_depth_mode {
@@ -169,22 +174,22 @@ draw_debug :: proc() {
 		}
 		
 		switch draw_data in g.debug_render_queue[i].data {
-			case deb.Line_Segment_Data:
-				sgl.c4f(draw_data.color[0], draw_data.color[1], draw_data.color[2], draw_data.color[3])
-				sgl.begin_lines()
-				sgl.v3f(draw_data.start[0], draw_data.start[1], draw_data.start[2])
-				sgl.v3f(draw_data.end[0], draw_data.end[1], draw_data.end[2])
-				sgl.end()
-				
-			case deb.Wire_Sphere_Data:
-				if draw_data.simple_mode {
-					deb.draw_wire_sphere_simple_immediate(draw_data.transform, draw_data.radius, draw_data.color)
-				} else {
-					deb.draw_wire_sphere_immediate(draw_data.transform, draw_data.radius, draw_data.color)
-				}
-				
-			case deb.Wire_Cube_Data:
-				deb.draw_wire_cube_immediate(draw_data.transform, draw_data.color)
+		case deb.Line_Segment_Data:
+			sgl.c4f(draw_data.color[0], draw_data.color[1], draw_data.color[2], draw_data.color[3])
+			sgl.begin_lines()
+			sgl.v3f(draw_data.start[0], draw_data.start[1], draw_data.start[2])
+			sgl.v3f(draw_data.end[0], draw_data.end[1], draw_data.end[2])
+			sgl.end()
+			
+		case deb.Wire_Sphere_Data:
+			if draw_data.simple_mode {
+				deb.draw_wire_sphere_simple_immediate(draw_data.transform, draw_data.radius, draw_data.color)
+			} else {
+				deb.draw_wire_sphere_immediate(draw_data.transform, draw_data.radius, draw_data.color)
+			}
+			
+		case deb.Wire_Cube_Data:
+			deb.draw_wire_cube_immediate(draw_data.transform, draw_data.color)
 		}
 	}
 
@@ -195,6 +200,10 @@ draw_debug :: proc() {
 
 @export
 game_frame :: proc() {
+	// Add logging to see if frame is being called
+	@(static) frame_count := 0
+	frame_count += 1
+	
 	dt := f32(sapp.frame_duration())
 	g.game_time += dt
 
@@ -214,19 +223,19 @@ game_frame :: proc() {
 
 	opaque_pass_action := sg.Pass_Action {
 		colors = {
-			0 = { load_action = .CLEAR, clear_value = {.2,.2,.2,1} },
+			0 = { load_action = .CLEAR, clear_value = {.2,.2,.2,1} },  // Back to original gray
 		},
 	}
 
-	outline_pass_action := sg.Pass_Action {
-		colors = {
-			0 = { load_action = .LOAD},
-		},
-		depth = {
-			load_action = .LOAD,
-			store_action = .DONTCARE,
-		},
-	}
+	// outline_pass_action := sg.Pass_Action {
+	// 	colors = {
+	// 		0 = { load_action = .LOAD},
+	// 	},
+	// 	depth = {
+	// 		load_action = .LOAD,
+	// 		store_action = .DONTCARE,
+	// 	},
+	// }
 
 	debug_pass_action := sg.Pass_Action {
 		colors = {
@@ -239,9 +248,9 @@ game_frame :: proc() {
 	// Get Directional Light
 	for i in 0..<len(g.lights) {
 		#partial switch value in g.lights[i] {
-			case ren.Directional_Light:
-				directional_light = value
-				direct_light_found = true
+		case ren.Directional_Light:
+			directional_light = value
+			direct_light_found = true
 		}
 	}
 
@@ -250,6 +259,7 @@ game_frame :: proc() {
 	// Directional Shadow Pass
 	{
 		if !direct_light_found do return
+		
 		sg.begin_pass({ action = shadow_pass_action, attachments = g.rendering_resources.shadow_resources.shadow_attachments })
 
 		view_projection := ren.get_light_view_proj(directional_light)
@@ -290,26 +300,26 @@ game_frame :: proc() {
 		if i > len(point_light_params.color) do continue
 		
 		switch value in g.lights[i] {
-			case ren.Point_Light:
-				point_light := value
-				point_range := point_light.transform.scale
-				
-				point_light_params.position[i].xyz = point_light.transform.position
-				point_light_params.color[i]        = point_light.color
-				point_light_params.intensity[i].x  = point_light.intensity
-				point_light_params.range[i].x      = linalg.max_triple(point_range.x, point_range.y, point_range.z)
+		case ren.Point_Light:
+			point_light := value
+			point_range := point_light.transform.scale
+			
+			point_light_params.position[i].xyz = point_light.transform.position
+			point_light_params.color[i]        = point_light.color
+			point_light_params.intensity[i].x  = point_light.intensity
+			point_light_params.range[i].x      = linalg.max_triple(point_range.x, point_range.y, point_range.z)
 
-				deb.draw_wire_sphere_alpha(point_light.transform, 1, point_light.color.rgb, .8, &g.debug_render_queue, .Front, true)
-			case ren.Directional_Light:
-				forward := trans.get_forward_direction(directional_light.transform) 
+			deb.draw_wire_sphere_alpha(point_light.transform, 1, point_light.color.rgb, .8, &g.debug_render_queue, .Front, true)
+		case ren.Directional_Light:
+			forward := trans.get_forward_direction(directional_light.transform) 
 
-				directional_light_params.position.xyz  = directional_light.transform.position
-				directional_light_params.direction.xyz = forward
-				directional_light_params.color         = directional_light.color
-				directional_light_params.intensity     = directional_light.intensity
+			directional_light_params.position.xyz  = directional_light.transform.position
+			directional_light_params.direction.xyz = forward
+			directional_light_params.color         = directional_light.color
+			directional_light_params.intensity     = directional_light.intensity
 
-				deb.draw_wire_sphere(directional_light.transform, .25, directional_light.color, &g.debug_render_queue, .Front, true)
-				deb.draw_transform_axes(directional_light.transform, 1, &g.debug_render_queue)
+			deb.draw_wire_sphere(directional_light.transform, .25, directional_light.color, &g.debug_render_queue, .Front, true)
+			deb.draw_transform_axes(directional_light.transform, 1, &g.debug_render_queue)
 		}
 	}
 

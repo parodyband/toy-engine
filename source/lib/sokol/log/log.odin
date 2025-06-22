@@ -166,8 +166,8 @@ when ODIN_OS == .Windows {
         when DEBUG { foreign import sokol_log_clib { "sokol_log_linux_x64_gl_debug.so" } }
         else       { foreign import sokol_log_clib { "sokol_log_linux_x64_gl_release.so" } }
     } else {
-        when DEBUG { foreign import sokol_log_clib { "sokol_log_linux_x64_gl_debug.a" } }
-        else       { foreign import sokol_log_clib { "sokol_log_linux_x64_gl_release.a" } }
+        when DEBUG { foreign import sokol_log_clib { "sokol_log_android_arm64_gles3_debug.a", "system:log", "system:android" } }
+        else       { foreign import sokol_log_clib { "sokol_log_android_arm64_gles3_release.a", "system:log", "system:android" } }
     }
 } else when ODIN_ARCH == .wasm32 || ODIN_ARCH == .wasm64p32 {
     // Feed sokol_log_wasm_gl_debug.a or sokol_log_wasm_gl_release.a into emscripten compiler.
@@ -189,5 +189,17 @@ foreign sokol_log_clib {
         });
     */
     func :: proc(tag: cstring, log_level: u32, log_item: u32, message: cstring, line_nr: u32, filename: cstring, user_data: rawptr)  ---
+}
+
+slog_func :: proc(tag: cstring, log_level: u32, log_level_str: cstring,
+	log_item: u32, file: cstring, line: u32,
+	message_or_nullptr: cstring, message_len: u32,
+	keep_symbols: bool) {
+	if slog_func != nil {
+		slog_func(tag, log_level, log_level_str,
+			log_item, file, line,
+			message_or_nullptr, message_len,
+			true)
+	}
 }
 

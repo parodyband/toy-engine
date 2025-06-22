@@ -6,21 +6,27 @@ Note how this just uses a `game` package to call the game code. No DLL is loaded
 
 package main_release
 
-import "core:log"
 import "core:os"
-import "core:os/os2"
-import "base:runtime"
 import "core:mem"
+import "base:runtime"
+import "core:log"
 import game "../../"
 import sapp "../sokol/app"
 
 _ :: mem
+_ :: runtime
 
 USE_TRACKING_ALLOCATOR :: #config(USE_TRACKING_ALLOCATOR, false)
 
 main :: proc() {
-	if exe_dir, exe_dir_err := os2.get_executable_directory(context.temp_allocator); exe_dir_err == nil {
-		os2.set_working_directory(exe_dir)
+	when ODIN_OS == .Windows {
+		// We need to do this, otherwise the game will not be able to find the DLL.
+		// Odin's `os.get_executable_directory` does not allocate a buffer big enough
+		// to hold the path to the executable, so we need to allocate it ourselves.
+		// NOTE: This should be fixed in the compiler.
+		if exe_dir, exe_dir_err := os.get_executable_directory(context.temp_allocator); exe_dir_err == nil {
+			os.set_working_directory(exe_dir)
+		}
 	}
 
 	mode: int = 0

@@ -211,13 +211,20 @@ load_texture_from_glb_data :: proc(glb_data : ^glTF2.Data) -> Texture {
 }
 
 load_glb_data_from_file :: proc(path : string) -> ^glTF2.Data {
+	fmt.printfln("load_glb_data_from_file: Starting to load '%s'", path)
+	
 	glb_data, error := glTF2.load_from_file(path)
 
 	switch err_val in error {
-		case glTF2.GLTF_Error:
-			fmt.printfln("GLTF Error: %s", err_val)
-		case glTF2.JSON_Error:
-			fmt.printfln("GLTF Json Error: %s", err_val)
+	case glTF2.GLTF_Error:
+		fmt.printfln("GLTF Error: %s", err_val)
+	case glTF2.JSON_Error:
+		fmt.printfln("GLTF Json Error: %s", err_val)
+	}
+	
+	if glb_data == nil {
+		fmt.println("load_glb_data_from_file: glb_data is nil!")
+		return nil
 	}
 
 	for mesh in glb_data.meshes {

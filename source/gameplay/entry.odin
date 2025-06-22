@@ -1,12 +1,11 @@
 package gameplay
 
+import "../common"
+import ren "../engine_core/renderer"
 import "core:math/linalg"
 
 import sapp  "../lib/sokol/app"
-import ren "../engine_core/renderer"
 import inp "../engine_core/input"
-
-import "../common"
 
 // import trans "../engine_core/transform"
 
@@ -15,10 +14,11 @@ Vec3  :: [3]f32
 Vec2  :: [2]f32
 Float :: f32
 
-Tinker     : ^ren.Entity
-Tinker_Key : ^ren.Entity
-Saw_Arm    : ^ren.Entity
-Saw_Blade  : ^ren.Entity
+Tinker           : ^ren.Entity
+Tinker_Key       : ^ren.Entity
+Tinker_Key_count : int
+Saw_Arm          : ^ren.Entity
+Saw_Blade        : ^ren.Entity
 
 Obstacle :: struct {
     Saw_Blade : [dynamic]^ren.Entity,
